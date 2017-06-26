@@ -88,7 +88,6 @@ public class smartPhase {
 		options.addRequiredOption("r", "reads1", true,
 				"Comma seperated list of paths to files containing aligned patient reads.");
 		options.addRequiredOption("p", "patient", true, "ID of patient through vcf and ped files.");
-		options.addRequiredOption("c", "reference", true, "Path to reference file.");
 		options.addRequiredOption("o", "output", true, "Path to desired output file.");
 		options.addRequiredOption("m", "mapq", true,
 				"Comma seperated list of mapping quality cutoff values to use when examining reads. Each value corresponds to the min MAPQ for an input BAM file.");
@@ -109,7 +108,6 @@ public class smartPhase {
 		final File inputVCF_ALL = new File(cmd.getOptionValue("a"));
 		final String inputREADFILESSTRING = cmd.getOptionValue("r");
 		final String inputMinMAPQ = cmd.getOptionValue("m");
-		final File inputREFERENCE = new File(cmd.getOptionValue("c"));
 		final File OUTPUT = new File(cmd.getOptionValue("o"));
 		PATIENT_ID = cmd.getOptionValue("p");
 		final boolean TRIO;
@@ -154,9 +152,6 @@ public class smartPhase {
 		if (!inputREADFILES[0].exists()) {
 			throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
 					+ " does not exist! You must provide at least one valid bam file containing reads.");
-		}
-		if (!inputREFERENCE.exists()) {
-			throw new FileNotFoundException("File " + inputREFERENCE.getAbsolutePath() + " does not exist!");
 		}
 		if (OUTPUT.exists()) {
 			System.out.println(
@@ -234,7 +229,6 @@ public class smartPhase {
 			boolean contigSwitch = false;
 			// Contig switched. Remove all reads not equal to new contig
 			if(!prevContig.equals(curInterval.getContig())){
-				System.out.println("!!!!!!!CONTIG CHANGE!!!!!!!");
 				contigSwitch = true;
 				prevContig = curInterval.getContig();
 				curRecords.removeIf(r -> !r.getContig().equals(curInterval.getContig()));
@@ -406,7 +400,7 @@ public class smartPhase {
 		int intervalEnd = curInterval.getEnd();
 		String intervalContig = curInterval.getContig();
 		
-		System.out.println("VarToPhase Size: "+variantsToPhase.size());
+		System.out.println("Variants found in interval: "+variantsToPhase.size());
 
 		// Cycle through all read files
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
@@ -437,9 +431,8 @@ public class smartPhase {
 
 		// Because variants are start sorted, reads with end less than
 		// intervalStart will never be relevant again
-		System.out.println("pre curRec Size: "+curRecords.size());
 		curRecords.removeIf(r -> r.getEnd() < intervalStart);
-		System.out.println("post curRec Size: "+curRecords.size());
+		System.out.println("Reads found in interval: "+curRecords.size());
 
 		// Create temp records list to be trimmed at end.
 		// TODO: Possible performance boost by checking from end of array
