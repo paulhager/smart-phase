@@ -7,6 +7,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.util.Collections;
@@ -289,6 +290,7 @@ public class smartPhase {
 			}
 
 			readPhase(variantsToPhase, curInterval);
+			
 
 			// If trio information is available, use parents GT to resolve phase
 			// where possible and then merge blocks
@@ -432,12 +434,13 @@ public class smartPhase {
 		// Because variants are start sorted, reads with end less than
 		// intervalStart will never be relevant again
 		curRecords.removeIf(r -> r.getEnd() < intervalStart);
-		System.out.println("Reads found in interval: "+curRecords.size());
+		
 
 		// Create temp records list to be trimmed at end.
 		// TODO: Possible performance boost by checking from end of array
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
 		trimmedRecords.removeIf(r -> r.getStart() > intervalEnd);
+		System.out.println("Reads found in interval: "+trimmedRecords.size());
 
 		if (trimmedRecords.size() > 0) {
 			phasePIR(variantsToPhase, trimmedRecords, curInterval);
@@ -452,36 +455,8 @@ public class smartPhase {
 
 		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
 
-		// TESTING
-		/*
-		 * 
-		 * List<Allele> al1 = new ArrayList<Allele>();
-		 * al1.add(Allele.create("A", true)); List<Allele> al2 = new
-		 * ArrayList<Allele>(); al2.add(Allele.create("T", true));
-		 * VariantContext vc1 = new
-		 * VariantContextBuilder().alleles(al1).genotypes(new
-		 * GenotypeBuilder().alleles(al1).make()).chr("chr1").make();
-		 * VariantContext vc2 = new
-		 * VariantContextBuilder().alleles(al2).genotypes(new
-		 * GenotypeBuilder().alleles(al2).make()).chr("chr1").make();
-		 * 
-		 * key = new HashSet<VariantContext>(); key.add(vc1); key.add(vc2);
-		 * phaseCounter.put(new PhaseCountTriple<>(key, Phase.CIS), 1);
-		 * System.out.println(phaseCounter.get(new PhaseCountTriple<>(key,
-		 * Phase.CIS)));
-		 * 
-		 * key = new HashSet<VariantContext>(); key.add(vc2); key.add(vc1); int
-		 * newVal = phaseCounter.get(new PhaseCountTriple<>(key, Phase.CIS)) +
-		 * 1; phaseCounter.put(new PhaseCountTriple<>(key, Phase.CIS), newVal);
-		 * phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>,
-		 * Phase>(key, Phase.CIS), (k, val) -> (val == null) ? 1 : val + 1);
-		 * System.out.println(phaseCounter.get(new PhaseCountTriple<>(key,
-		 * Phase.CIS))); System.exit(0);
-		 * 
-		 * // TESTING
-		 */
-
 		for (SAMRecord r : trimmedRecords) {
+			
 			trimPosVarsInRead = new ArrayList<VariantContext>(variantsToPhase);
 
 			trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
@@ -505,6 +480,8 @@ public class smartPhase {
 				// alternative alleles in variant
 				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
 				int subStrEnd = r.getReadPositionAtReferencePosition(v.getEnd(), false);
+				
+				
 
 				// Disregard variants who start in the middle of deletions as
 				// these aren't called correctly.
@@ -562,11 +539,23 @@ public class smartPhase {
 						if (subStrEnd == 0) {
 							subStrEnd = subStrStart + allele.length();
 						}
+						
+						
+						/*if(r.getReferencePositionAtReadPosition(subStrStart) != v.getStart()){
+						System.out.println(patGT.toBriefString());
+						System.out.println("read: "+r.getReadString().substring( 
+								  subStrStart, subStrEnd)); 
+						System.out.println("altAllele: "+allele.getDisplayString());
+						System.out.println(subStrStart);
+						System.out.println(subStrEnd);
+						System.out.println(r.getReferencePositionAtReadPosition(subStrStart));
+						System.out.println(v.getStart());
+						System.out.println(r.getCigarString());
+						System.out.println("---");
+						}*/
 
 						// Variant is found in read
-						// TODO: Work with bytes instead of string for
-						// performance boost?
-						if (r.getReadString().substring(subStrStart, subStrEnd).equals(allele.getBaseString())) {
+						if(allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 							seenInRead.add(v);
 							// Increase CIS counter for all also found with this
 							// read
@@ -576,8 +565,17 @@ public class smartPhase {
 							// found on this read
 							phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
 						}
-						// Variant is not found in read
-						else {
+						
+					} else {
+						// Correct for deletion variants. Ref runs into del
+						// territory of CIGAR, so reset subStrEnd to size of
+						// alt. allele to see if it matches to alt allele
+						if (subStrEnd == 0) {
+							subStrEnd = subStrStart + allele.length();
+						}
+						
+						// Variant is not found in read but ref is
+						if(allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 							NOT_SeenInRead.add(v);
 							// Increase CIS counter with all others not found in
 							// read
@@ -587,6 +585,8 @@ public class smartPhase {
 							phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
 						}
 					}
+					
+					
 				}
 			}
 		}
