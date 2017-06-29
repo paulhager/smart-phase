@@ -22,7 +22,7 @@ public class FilteredVariantReader {
 	private boolean vcf = false;
 	private HashMap<String, Long> contigPointers;
 
-	Set<Long> startSet = new HashSet<Long>();
+	Set<Integer> startSet = new HashSet<Integer>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
 
 	public FilteredVariantReader(File inFile) {
@@ -129,12 +129,12 @@ public class FilteredVariantReader {
 				}
 
 				// Create new variantContext and add
-				if (!startSet.contains(start)) {
+				if (!startSet.contains(entries.hashCode())) {
 					possibleVariants.add(
 							vcBuilder.source(fileName).chr(entries[0]).start(start).stop(stop).alleles(alleles).make());
 				}
 				
-				startSet.add(start);
+				startSet.add(entries.hashCode());
 				
 				// Check if contig changed
 				if (!possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())) {
