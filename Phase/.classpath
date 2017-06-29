@@ -2,25 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8"/>
-	<classpathentry kind="lib" path="/Users/paulhager/eclipse/packages/picard.jar" sourcepath="/Users/paulhager/Downloads/broadinstitute-picard-1c54e16/src">
-		<attributes>
-			<attribute name="javadoc_location" value="https://broadinstitute.github.io/picard/javadoc/picard/"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="lib" path="/Users/paulhager/eclipse/libraries/commons-cli-1.4/commons-cli-1.4.jar" sourcepath="/Users/paulhager/eclipse/libraries/commons-cli-1.4/commons-cli-1.4-sources.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="file:/Users/paulhager/eclipse/libraries/commons-cli-1.4/apidocs/"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="lib" path="/Users/paulhager/eclipse/libraries/commons-collections4-4.1/commons-collections4-4.1.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="file:/Users/paulhager/eclipse/libraries/commons-collections4-4.1/apidocs/"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="lib" path="/Users/paulhager/eclipse/libraries/commons-lang3-3.5/commons-lang3-3.5.jar" sourcepath="/Users/paulhager/eclipse/libraries/commons-lang3-3.5/commons-lang3-3.5-sources.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="file:/Users/paulhager/eclipse/libraries/commons-lang3-3.5/apidocs/"/>
-		</attributes>
-	</classpathentry>
+	<classpathentry kind="lib" path="/home/ibis/paul.hager/eclipseLibraries/commons-cli-1.4.jar"/>
+	<classpathentry kind="lib" path="/home/ibis/paul.hager/eclipseLibraries/commons-lang3-3.5.jar"/>
+	<classpathentry kind="lib" path="/home/ibis/paul.hager/eclipseLibraries/picard.jar"/>
+	<classpathentry kind="lib" path="/home/ibis/paul.hager/eclipseLibraries/commons-collections4-4.1/commons-collections4-4.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
