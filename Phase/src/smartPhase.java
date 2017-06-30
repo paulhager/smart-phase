@@ -389,8 +389,6 @@ public class smartPhase {
 
 		int readsExamined = 0;
 		// Cycle through all read files
-		try{
-			BufferedWriter bw = new BufferedWriter(new FileWriter("/tmp/flags.txt"));
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
 			SAMRecordIterator curIterator = samIteratorList.get(indx);
 			double minQ = minMAPQ[indx];
@@ -412,7 +410,6 @@ public class smartPhase {
 				// Only use reads that are mapped and have desired quality
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || (curRec.getReadPairedFlag() && !curRec.getProperPairFlag())
 						|| curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag()) {
-					bw.write(curRec.getFlags()+" "+curRec.getMappingQuality()+"\n");
 					continue;
 				}
 
@@ -427,10 +424,6 @@ public class smartPhase {
 			// Before switching to the next iterator, save the last record
 			// looked at by current iterator
 			grabLastRec.put(curIterator, curRec);
-		}
-		bw.close();
-		}catch(Exception e){
-			e.printStackTrace();
 		}
 
 		// TODO: All records are saved twice now, requiring double the memory..... all
