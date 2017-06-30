@@ -16,35 +16,59 @@ public class FilteredVariantReader {
 
 	private RandomAccessFile raFile;
 	private String fileName;
-	private boolean vcf = false;
 	private HashMap<String, Long> contigPointers;
+	
+	private int chromCol = -1;
+	private int startCol = -1;
+	private int refCol = -1;
+	private int altCol = -1;
 
 	Set<Integer> startSet = new HashSet<Integer>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
 
-	public FilteredVariantReader(File inFile) {
+	public FilteredVariantReader(File inFile) throws Exception {
 		try {
 			raFile = new RandomAccessFile(inFile, "r");
 			contigPointers = new HashMap<String, Long>();
 
-			String line;
-
-			// Skip all commented lines if VCF
+			String line = null;
 			
-			while ((line = raFile.readLine()).startsWith("##")) {
-			}
-
-			// Remove comment char from VCF header
-			if (line.startsWith("#")) {
-				vcf = true;
-				line = line.substring(1);
-			}
-
-			// Ensure correct header
-			String[] header = line.split("\\t");
-			if (!header[0].equalsIgnoreCase("chrom")
-					|| !(header[1].equalsIgnoreCase("start") || header[1].equalsIgnoreCase("pos"))) {
-				throw new Error("Incorrect header in filtered variant file.");
+			if(inFile.getPath().endsWith(".vcf") || inFile.getPath().endsWith(".vcf.gz")){				
+				// Skip all commented lines if VCF
+				while ((line = raFile.readLine()).startsWith("##")) {
+				}
+				
+				if(!line.startsWith("#")){
+					throw new Error("Invalid vcf. Could not find header.");
+				} else {
+					line = line.substring(1);
+				}
+				
+				// Vcf is standard
+				chromCol = 0;
+				startCol = 1;
+				refCol = 3;
+				altCol = 4;
+			} else {
+				// If not vcf, assume gemini and attempt to parse
+				line = raFile.readLine();
+				
+				// Parse col locations
+				String[] headers = line.split("\t");
+				for(int x = 0; x < headers.length; x++){
+					if(headers[x].equals("chrom")){
+						chromCol = x;
+					} else if(headers[x].equals("start")){
+						startCol = x;
+					} else if(headers[x].equals("ref")){
+						refCol = x;
+					} else if(headers[x].equals("alt")){
+						altCol = x;
+					}
+				}
+				if(chromCol == -1 || startCol == -1 || refCol == -1 || altCol == -1){
+					throw new Exception("Filtered variants weren't provided in either vcf or gemini format. No other format is supported. Please supply a vcf or gemini output file.");
+				}
 			}
 			
 			// Save all contig start positions in file
@@ -104,26 +128,23 @@ public class FilteredVariantReader {
 
 				// Parse all alleles
 				ArrayList<Allele> alleles = new ArrayList<Allele>();
-				Allele allele = Allele.create(entries[3], true);
+				Allele allele = Allele.create(entries[refCol], true);
 				alleles.add(allele);
-				String[] nonRefAlleles = entries[4].split(",");
+				String[] nonRefAlleles = entries[altCol].split(",");
 				for (String alleleString : nonRefAlleles) {
 					Allele a = Allele.create(alleleString, false);
 					alleles.add(a);
 				}
 
 				long stop;
-				long start = Long.parseLong(entries[1]);
-				if (vcf) {
-					stop = start + allele.length() - 1;
-				} else {
-					stop = Long.parseLong(entries[2]);
-				}
+				long start = Long.parseLong(entries[startCol]);
+				stop = start + allele.length() - 1;
+				
 
 				// Create new variantContext and add
 				if (!startSet.contains(entries.hashCode())) {
 					possibleVariants.add(
-							vcBuilder.source(fileName).chr(entries[0]).start(start).stop(stop).alleles(alleles).make());
+							vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).make());
 				}
 				
 				startSet.add(entries.hashCode());
