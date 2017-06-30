@@ -102,7 +102,7 @@ public class smartPhase {
 			TRIO = false;
 			inputPEDIGREE = null;
 		}
-
+		
 		// Parse input read files and their desired min MAPQ from command line
 		// string
 		String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
@@ -137,6 +137,7 @@ public class smartPhase {
 		if (OUTPUT.exists()) {
 			System.out.println(
 					"WARNING! Output file " + OUTPUT.getAbsolutePath() + " already exists and will be overwritten.");
+			OUTPUT.delete();
 		}
 
 		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
@@ -358,11 +359,22 @@ public class smartPhase {
 		System.out.println("Trans count: " + globalTrans);
 		System.out.println("Newblock count: " + globalNewBlock);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
+		
+		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
+			bwOUTPUT.write("Denovo count: " + denovoCounter);
+			bwOUTPUT.write("Cis count: " + globalCis);
+			bwOUTPUT.write("Trans count: " + globalTrans);
+			bwOUTPUT.write("Newblock count: " + globalNewBlock);
+			bwOUTPUT.write(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
+		} catch (Exception e){
+			e.printStackTrace();
+		}
 	}
 
 	private static HashMap<Interval, ArrayList<HaplotypeBlock>> readPhase(ArrayList<VariantContext> variantsToPhase,
 			Interval curInterval) throws Exception {
 
+		
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
@@ -375,7 +387,10 @@ public class smartPhase {
 
 		System.out.println("Variants found in interval: " + variantsToPhase.size());
 
+		int readsExamined = 0;
 		// Cycle through all read files
+		try{
+			BufferedWriter bw = new BufferedWriter(new FileWriter("/tmp/flags.txt"));
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
 			SAMRecordIterator curIterator = samIteratorList.get(indx);
 			double minQ = minMAPQ[indx];
@@ -385,11 +400,19 @@ public class smartPhase {
 
 			// Add records until start of read exceeds end of interval
 			while ((curRec == null || curRec.getStart() < intervalEnd) && curIterator.hasNext()) {
+				
+				
 				curRec = curIterator.next();
+				
+				if (curRec.getEnd() >= intervalStart) {
+					readsExamined++;
+				}
+				
+				
 				// Only use reads that are mapped and have desired quality
-				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || !curRec.getFirstOfPairFlag()
-						|| curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag()
-						|| curRec.getReadFailsVendorQualityCheckFlag()) {
+				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || (curRec.getReadPairedFlag() && !curRec.getProperPairFlag())
+						|| curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag()) {
+					bw.write(curRec.getFlags()+" "+curRec.getMappingQuality()+"\n");
 					continue;
 				}
 
@@ -405,16 +428,21 @@ public class smartPhase {
 			// looked at by current iterator
 			grabLastRec.put(curIterator, curRec);
 		}
+		bw.close();
+		}catch(Exception e){
+			e.printStackTrace();
+		}
 
 		// TODO: All records are saved twice now, requiring double the memory..... all
 		// because of one record....
 		// Create temp records list to be trimmed at end.
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
-
+		
 		if (curRec.getStart() > intervalEnd && trimmedRecords.size() > 0) {
 			trimmedRecords.remove(trimmedRecords.size() - 1);
 		}
-		System.out.println("Reads found in interval: " + trimmedRecords.size());
+		System.out.println("Reads examined in interval: "+readsExamined);
+		System.out.println("Reads passing QC in interval: " + trimmedRecords.size());
 
 		if (trimmedRecords.size() > 0) {
 			return phasePIR(variantsToPhase, trimmedRecords, curInterval);

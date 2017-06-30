@@ -124,35 +124,42 @@ public class FilteredVariantReader {
 		while ((possibleVariants.size() == 0
 				|| possibleVariants.get(possibleVariants.size() - 1).getStart() < intervalEnd)) {
 			try {
-				String[] entries = raFile.readLine().split("\\t");
-
-				// Parse all alleles
-				ArrayList<Allele> alleles = new ArrayList<Allele>();
-				Allele allele = Allele.create(entries[refCol], true);
-				alleles.add(allele);
-				String[] nonRefAlleles = entries[altCol].split(",");
-				for (String alleleString : nonRefAlleles) {
-					Allele a = Allele.create(alleleString, false);
-					alleles.add(a);
-				}
-
-				long stop;
-				long start = Long.parseLong(entries[startCol]);
-				stop = start + allele.length() - 1;
+				String line = raFile.readLine();
 				
+				if(line != null){
+					String[] entries = line.split("\\t");
 
-				// Create new variantContext and add
-				if (!startSet.contains(entries.hashCode())) {
-					possibleVariants.add(
-							vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).make());
-				}
-				
-				startSet.add(entries.hashCode());
-				
-				// Check if contig changed
-				if (!possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())) {
+					// Parse all alleles
+					ArrayList<Allele> alleles = new ArrayList<Allele>();
+					Allele allele = Allele.create(entries[refCol], true);
+					alleles.add(allele);
+					String[] nonRefAlleles = entries[altCol].split(",");
+					for (String alleleString : nonRefAlleles) {
+						Allele a = Allele.create(alleleString, false);
+						alleles.add(a);
+					}
+
+					long stop;
+					long start = Long.parseLong(entries[startCol]);
+					stop = start + allele.length() - 1;
+					
+
+					// Create new variantContext and add
+					if (!startSet.contains(entries.hashCode())) {
+						possibleVariants.add(
+								vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).make());
+					}
+					
+					startSet.add(entries.hashCode());
+					
+					// Check if contig changed
+					if (!possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())) {
+						break;
+					}
+				} else {
 					break;
 				}
+				
 			} catch (EOFException e) {
 				break;
 			}
