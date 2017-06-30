@@ -411,7 +411,7 @@ public class smartPhase {
 		// Create temp records list to be trimmed at end.
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
 
-		if (curRec.getStart() > intervalEnd) {
+		if (curRec.getStart() > intervalEnd && trimmedRecords.size() > 0) {
 			trimmedRecords.remove(trimmedRecords.size() - 1);
 		}
 		System.out.println("Reads found in interval: " + trimmedRecords.size());
