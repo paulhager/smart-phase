@@ -1,5 +1,7 @@
+import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import htsjdk.variant.variantcontext.VariantContextBuilder;
 public class FilteredVariantReader {
 
 	private RandomAccessFile raFile;
+	private BufferedReader fileReader;
 	private String fileName;
 	private boolean vcf = false;
 	private HashMap<String, Long> contigPointers;
@@ -26,6 +29,11 @@ public class FilteredVariantReader {
 		try {
 			raFile = new RandomAccessFile(inFile, "r");
 			contigPointers = new HashMap<String, Long>();
+			
+			/*
+			raFile = new RandomAccessFile(inFile, "r");
+			contigPointers = new HashMap<String, Long>();
+			*/
 
 			String line;
 
