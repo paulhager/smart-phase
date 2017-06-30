@@ -1,17 +1,11 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -19,7 +13,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 
 //import org.apache.commons.lang.*;
 //import org.broadinstitute.gatk.utils.GenomeLocSortedSet.MergeStrategy;
@@ -27,30 +20,21 @@ import java.util.Collection;
 //import org.broadinstitute.gatk.utils.genotyper.AlleleList;
 import org.apache.commons.cli.*;
 
-import htsjdk.samtools.QueryInterval;
-import htsjdk.samtools.SAMFileHeader;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
-import htsjdk.samtools.SAMSequenceDictionary;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 import htsjdk.samtools.util.CloseableIterator;
 import htsjdk.samtools.util.Interval;
 import htsjdk.samtools.util.IntervalList;
-import htsjdk.tribble.TribbleIndexedFeatureReader;
 import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
-import htsjdk.variant.variantcontext.GenotypesContext;
 import htsjdk.variant.variantcontext.VariantContext;
-import htsjdk.variant.variantcontext.VariantContext.Validation;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFFileReader;
 import picard.pedigree.PedFile;
-import picard.sam.CreateSequenceDictionary;
-import picard.util.BedToIntervalList;
-import picard.vcf.GenotypeConcordanceSchemeFactory;
 
 public class smartPhase {
 
@@ -73,10 +57,6 @@ public class smartPhase {
 	static int globalCis = 0;
 	static int globalTrans = 0;
 	static int globalNewBlock = 0;
-
-	// KEY: Interval VALUE: List of Lists: each arraylist
-	// represents a haplotype block
-	static HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
 
 	public static void main(String[] args) throws Exception {
 		// Parse Options
@@ -163,8 +143,6 @@ public class smartPhase {
 				.validationStringency(ValidationStringency.SILENT);
 		IntervalList iList = new IntervalList(samReaderFactory.open(inputREADFILES[0]).getFileHeader());
 
-		// TODO: Order of chromosomes in bed file must match order given in vcf
-		// and filtVarList
 		// Grab all intervals from bed file and store in interval list
 		try (BufferedReader brBED = new BufferedReader(new FileReader(inputBED))) {
 			String line;
@@ -172,10 +150,10 @@ public class smartPhase {
 			String[] columns;
 
 			while ((line = brBED.readLine()) != null) {
-				if(line.startsWith("#")){
+				if (line.startsWith("#")) {
 					continue;
 				}
-				
+
 				if (line.startsWith("track") || line.startsWith("browser") && header == null) {
 					header = line;
 					line = brBED.readLine();
@@ -194,19 +172,20 @@ public class smartPhase {
 		} catch (Exception e) {
 			throw new Exception("Exception while reading bed file: \n" + e.getMessage());
 		}
+
 		iList = iList.uniqued();
 
 		// Read both VCF files
-		// TODO: BOTH FILES MUST BE SORTED!!!!!!
 		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER);
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
 
+		HashSet<SamReader> samReaderSet = new HashSet<SamReader>();
 		// Create factory to read bam files and add iterators to list
-		// TODO: ENSURE SAM RECORDS ARE SORTED
 		for (File inputReadsFile : inputREADFILES) {
 			SamReader samReader = samReaderFactory.open(inputReadsFile);
-			samIteratorList.add(samReader.iterator());
+			samReaderSet.add(samReader);
 		}
+		samReaderFactory = null;
 
 		// Storage of filtered variant lists
 		HashMap<Interval, ArrayList<VariantContext>> regionFiltVariantMap = new HashMap<Interval, ArrayList<VariantContext>>();
@@ -214,135 +193,111 @@ public class smartPhase {
 		// Iterate over genomic regions
 		Iterator<Interval> intervalListIterator = iList.iterator();
 		ArrayList<VariantContext> variantsToPhase;
-		
+
 		String prevContig = "";
 		while (intervalListIterator.hasNext()) {
 			Interval curInterval = intervalListIterator.next();
-			
-			if (phasedVars.containsKey(curInterval)) {
+			String intervalContig = curInterval.getContig();
+			int intervalStart = curInterval.getStart();
+			int intervalEnd = curInterval.getEnd();
+
+			// KEY: Interval VALUE: List of Lists: each arraylist
+			// represents a haplotype block
+			HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
+
+			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
 				continue;
 			}
-			
-			if(prevContig.equals("")){
-				prevContig = curInterval.getContig();
-			}
-			
+
 			boolean contigSwitch = false;
-			// Contig switched. Remove all reads not equal to new contig
-			if(!prevContig.equals(curInterval.getContig())){
+			// Contig switched.
+			if (!prevContig.equals(intervalContig)) {
+				for(SAMRecordIterator srIt : samIteratorList){
+					srIt.close();
+				}
+				samIteratorList = new ArrayList<SAMRecordIterator>();
+				grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
+				curRecords = new ArrayList<SAMRecord>();
+				for (SamReader sr : samReaderSet) {
+					samIteratorList.add(sr.query(intervalContig, 0, 250000000, false));
+				}
 				contigSwitch = true;
-				prevContig = curInterval.getContig();
-				curRecords.removeIf(r -> !r.getContig().equals(curInterval.getContig()));
+				prevContig = intervalContig;
 			}
 
 			// Grab filtered variants within current region
 			ArrayList<VariantContext> regionFiltVariantList = filteredVCFReader.scan(curInterval, contigSwitch);
 			regionFiltVariantMap.put(curInterval, regionFiltVariantList);
-			//Iterator<VariantContext> regionFiltVariantIterator = regionFiltVariantList.iterator();
 
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
 			if (regionFiltVariantList.size() < 2) {
-
-				/*
-				// Create new phasedVars entry
-				ArrayList<HaplotypeBlock> phase = new ArrayList<HaplotypeBlock>();
-				HaplotypeBlock simpleBlock = new HaplotypeBlock(PATIENT_ID);
-
-				// Fill block if possible
-				while (regionFiltVariantIterator.hasNext()) {
-					VariantContext singleVar = regionFiltVariantIterator.next();
-					simpleBlock.addVariant(singleVar, HaplotypeBlock.Strand.STRAND1);
-				}
-
-				// Throw error if more than one variant found in block
-				if (simpleBlock.getAllVariants().size() > 1) {
-					throw new Exception("ERROR! There should only be one variant in this block. Something went wrong.");
-				}
-
-				// Might not be very empty now but should contain maximum of 1
-				// value
-				phase.add(simpleBlock);
-				phasedVars.put(curInterval, phase);
-				*/
-
 				// Skip all phasing steps and move onto next interval
 				continue;
 			}
-			
+
 			// Grab all variants within current region
-			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(curInterval.getContig(),
-					curInterval.getStart(), curInterval.getEnd());
+			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
+					intervalStart, intervalEnd);
 
 			System.out.println("------------------");
-			System.out.println("INTERVAL CONTIG: "+curInterval.getContig());
-			System.out.println("INTERVAL START: " + curInterval.getStart());
-			System.out.println("INTERVAL END: " + curInterval.getEnd());
-			System.out.println("------------------");
+			System.out.println("INTERVAL CONTIG: " + intervalContig);
+			System.out.println("INTERVAL START: " + intervalStart);
+			System.out.println("INTERVAL END: " + intervalEnd);
+
+			System.out.println("Filtered Variants found in interval: " + regionFiltVariantList.size());
 
 			// MutablePhasedVariantsIterator that stores the phased variants to
 			// be analyzed at end for compound heterozygosity
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
 			regionAllVariantIterator.close();
-			
-			if(variantsToPhase.isEmpty()){
+			regionAllVariantIterator = null;
+
+			if (variantsToPhase.isEmpty()) {
 				continue;
 			}
 
-			readPhase(variantsToPhase, curInterval);
-			
+			phasedVars = readPhase(variantsToPhase, curInterval);
 
 			// If trio information is available, use parents GT to resolve phase
 			// where possible and then merge blocks
 			if (TRIO) {
-				ArrayList<VariantContext> phasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
+				ArrayList<VariantContext> trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
+				variantsToPhase = null;
 				// Only merge if there are blocks to be merged
 				if (phasedVars.containsKey(curInterval)) {
-					// System.out.println("BEFORE MERGE SIZE:
-					// "+phasedVars.get(curInterval).size());
-					phasedVars.put(curInterval, mergeBlocks(phasedVariants, phasedVars.get(curInterval)));
-					// System.out.println("AFTER MERGE SIZE:
-					// "+phasedVars.get(curInterval).size());
+					phasedVars.put(curInterval, mergeBlocks(trioPhasedVariants, phasedVars.get(curInterval)));
 				}
 			}
 
-		}
+			// Write final output file
+			// Format:
+			//
+			// INTERVAL\t$CONTIG\t$START\t$END
+			// $VAR1START-$VAR1END\t$VAR2START-$VAR2END\t$PHASEINT\t$CONFIDENCE
+			//
+			// $PHASEINT:
+			// 0 = NOT Compound Heterozygous
+			// 1 = IS Compound Heterozygous
+			// -1 = No Information
+			try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 
-		filteredVCFReader.close();
-		allVCFReader.close();
+				ArrayList<VariantContext> filtVarList = regionFiltVariantMap.get(curInterval);
 
-		// Write final output file
-		// Format:
-		//
-		// INTERVAL\t$CONTIG\t$START\t$END
-		// $VAR1START-$VAR1END\t$VAR2START-$VAR2END\t$PHASEINT\t$CONFIDENCE
-		//
-		// $PHASEINT:
-		// 0 = NOT Compound Heterozygous
-		// 1 = IS Compound Heterozygous
-		// -1 = No Information
-		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT))) {
-			intervalListIterator = iList.iterator();
-			while (intervalListIterator.hasNext()) {
-				Interval curInt = intervalListIterator.next();
-				ArrayList<VariantContext> filtVarList = regionFiltVariantMap.get(curInt);
-
-				bwOUTPUT.write(
-						"INTERVAL\t" + curInt.getContig() + "\t" + curInt.getStart() + "\t" + curInt.getEnd() + "\n");
-				// System.out.println("INTERVAL\t"+curInt.getContig()+"\t"+curInt.getStart()+"\t"+curInt.getEnd());
+				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\n");
 
 				if (filtVarList.size() == 1) {
 					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
 				}
 
-				if (phasedVars.containsKey(curInt)) {
+				if (phasedVars.containsKey(curInterval)) {
 					for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
 						VariantContext outerVariant = filtVarList.get(outerCount);
 						for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
 							boolean phased = false;
 							VariantContext innerVariant = filtVarList.get(innerCount);
 
-							for (HaplotypeBlock hb : phasedVars.get(curInt)) {
+							for (HaplotypeBlock hb : phasedVars.get(curInterval)) {
 								if (hb == null) {
 									throw new Exception("HaplotypeBlock is null!");
 								}
@@ -364,45 +319,61 @@ public class smartPhase {
 												+ innerVariant.getStart() + "|" + innerVariant.getEnd() + "\t1\t"
 												+ totalConfidence + "\n");
 										continue;
-										// System.out.println(outerVariant.getStart()+"|"+outerVariant.getEnd()+"\t"+innerVariant.getStart()+"|"+innerVariant.getEnd()+"\t1");
 									} else {
 										bwOUTPUT.write(outerVariant.getStart() + "|" + outerVariant.getEnd() + "\t"
 												+ innerVariant.getStart() + "|" + innerVariant.getEnd() + "\t0\t"
 												+ totalConfidence + "\n");
 										continue;
-										// System.out.println(outerVariant.getStart()+"|"+outerVariant.getEnd()+"\t"+innerVariant.getStart()+"|"+innerVariant.getEnd()+"\t0");
 									}
 								}
 							}
 							if (!phased) {
 								bwOUTPUT.write(outerVariant.getStart() + "|" + outerVariant.getEnd() + "\t"
 										+ innerVariant.getStart() + "|" + innerVariant.getEnd() + "\t-1\t0\n");
-								// System.out.println(outerVariant.getStart()+"|"+outerVariant.getEnd()+"\t"+innerVariant.getStart()+"|"+innerVariant.getEnd()+"\t-1");
 							}
 						}
 					}
 				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new IOException("Exception while writting output file: " + e.getMessage());
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw new IOException("Exception while writting output file: " + e.getMessage());
+
+			System.out.println("------------------");
 		}
+
+		filteredVCFReader.close();
+		allVCFReader.close();
+
+		// Time benchmarking
+		long millis = System.currentTimeMillis() - startTime;
+		long second = (millis / 1000) % 60;
+		long minute = (millis / (1000 * 60)) % 60;
+		long hour = (millis / (1000 * 60 * 60)) % 24;
+
+		// Output statistics
 		System.out.println("Denovo count: " + denovoCounter);
 		System.out.println("Cis count: " + globalCis);
 		System.out.println("Trans count: " + globalTrans);
 		System.out.println("Newblock count: " + globalNewBlock);
-		// System.out.println(System.currentTimeMillis()-startTime);
+		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 	}
 
-	private static void readPhase(ArrayList<VariantContext> variantsToPhase, Interval curInterval) throws Exception {
+	private static HashMap<Interval, ArrayList<HaplotypeBlock>> readPhase(ArrayList<VariantContext> variantsToPhase,
+			Interval curInterval) throws Exception {
 
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
 		int intervalEnd = curInterval.getEnd();
 		String intervalContig = curInterval.getContig();
-		
-		System.out.println("Variants found in interval: "+variantsToPhase.size());
+
+		// Because variants are start sorted, reads with end less than
+		// intervalStart will never be relevant again
+		curRecords.removeIf(r -> r.getEnd() < intervalStart);
+
+		System.out.println("Variants found in interval: " + variantsToPhase.size());
 
 		// Cycle through all read files
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
@@ -411,18 +382,22 @@ public class smartPhase {
 
 			// Update curRec to last record looked at by current iterator
 			curRec = grabLastRec.getOrDefault(curIterator, null);
-			
+
 			// Add records until start of read exceeds end of interval
 			while ((curRec == null || curRec.getStart() < intervalEnd) && curIterator.hasNext()) {
 				curRec = curIterator.next();
 				// Only use reads that are mapped and have desired quality
-				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || !curRec.getFirstOfPairFlag() || curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag() || curRec.getReadFailsVendorQualityCheckFlag()) {
+				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || !curRec.getFirstOfPairFlag()
+						|| curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag()
+						|| curRec.getReadFailsVendorQualityCheckFlag()) {
 					continue;
 				}
 
-				curRecords.add(curRec);
-				
-				if(!curRec.getContig().equals(intervalContig)){
+				if (curRec.getEnd() >= intervalStart) {
+					curRecords.add(curRec);
+				}
+
+				if (!curRec.getContig().equals(intervalContig)) {
 					break;
 				}
 			}
@@ -431,32 +406,33 @@ public class smartPhase {
 			grabLastRec.put(curIterator, curRec);
 		}
 
-		// Because variants are start sorted, reads with end less than
-		// intervalStart will never be relevant again
-		curRecords.removeIf(r -> r.getEnd() < intervalStart);
-		
-
+		// TODO: All records are saved twice now, requiring double the memory..... all
+		// because of one record....
 		// Create temp records list to be trimmed at end.
-		// TODO: Possible performance boost by checking from end of array
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
-		trimmedRecords.removeIf(r -> r.getStart() > intervalEnd);
-		System.out.println("Reads found in interval: "+trimmedRecords.size());
+
+		if (curRec.getStart() > intervalEnd) {
+			trimmedRecords.remove(trimmedRecords.size() - 1);
+		}
+		System.out.println("Reads found in interval: " + trimmedRecords.size());
 
 		if (trimmedRecords.size() > 0) {
-			phasePIR(variantsToPhase, trimmedRecords, curInterval);
+			return phasePIR(variantsToPhase, trimmedRecords, curInterval);
 		}
+		return new HashMap<Interval, ArrayList<HaplotypeBlock>>();
 	}
 
-	private static void phasePIR(ArrayList<VariantContext> variantsToPhase, ArrayList<SAMRecord> trimmedRecords,
-			Interval curInterval) throws Exception {
+	private static HashMap<Interval, ArrayList<HaplotypeBlock>> phasePIR(ArrayList<VariantContext> variantsToPhase,
+			ArrayList<SAMRecord> trimmedRecords, Interval curInterval) throws Exception {
 
 		ArrayList<VariantContext> trimPosVarsInRead;
 		Set<VariantContext> key;
+		HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
 
 		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
 
 		for (SAMRecord r : trimmedRecords) {
-			
+
 			trimPosVarsInRead = new ArrayList<VariantContext>(variantsToPhase);
 
 			trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
@@ -480,8 +456,6 @@ public class smartPhase {
 				// alternative alleles in variant
 				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
 				int subStrEnd = r.getReadPositionAtReferencePosition(v.getEnd(), false);
-				
-				
 
 				// Disregard variants who start in the middle of deletions as
 				// these aren't called correctly.
@@ -493,45 +467,6 @@ public class smartPhase {
 					// Check alternative allele co-occurence on read
 					// TODO: What if both alleles are nonreference?
 					if (allele.isNonReference()) {
-						/*
-						 * // DEBUGGING System.out.println("$$$$$----$$$$$"); //
-						 * System.out.println("ssStart: "+subStrStart); //
-						 * System.out.println("ssEnd: "+subStrEnd); //
-						 * System.out.println("varStart: "+v.getStart()); //
-						 * System.out.println("readStart: "+r.getStart()); //
-						 * System.out.println("READ STRING: " + //
-						 * r.getReadString()); //
-						 * System.out.println(r.getReadString().substring( //
-						 * subStrStart, subStrEnd)); //
-						 * System.out.println(allele.getBaseString()); //
-						 * System.out.println("$$$$$----$$$$$"); DEBUGGING
-						 * System.out.println("---");
-						 * System.out.println(r.getReadName());
-						 * System.out.println(r.getReadNegativeStrandFlag());
-						 * System.out.println(r.getFlags());
-						 * System.out.println("getAlignmentStart: "+r.
-						 * getAlignmentStart()+"\t||getAlignmentEnd: "+r.
-						 * getAlignmentEnd());
-						 * System.out.println("getUnclippedStart: "+r.
-						 * getUnclippedStart()+"\t||getUnclippedEnd: "+r.
-						 * getUnclippedEnd());
-						 * System.out.println("seq: "+r.getReadString());
-						 * System.out.println("CIGAR: "+r.getCigarString());
-						 * System.out.println("read: "+r.getReadLength()+" = "+r
-						 * .getStart()+" - "+r.getEnd());
-						 * System.out.println("subStart: "+subStrStart+" = "+v.
-						 * getStart()+" - "+r.getStart());
-						 * System.out.println("subEnd: "+subStrEnd+" = "
-						 * +subStrStart+" + "+v.getEnd()+" - "+v.getStart()
-						 * +" + 1"); System.out.println("subStart convert: "+r.
-						 * getReadPositionAtReferencePosition(v.getStart(),
-						 * false)); System.out.println("subEnd convert: "+r.
-						 * getReadPositionAtReferencePosition(v.getEnd(),
-						 * false));
-						 * 
-						 * if(r.getReadNegativeStrandFlag()){ System.exit(0); }
-						 * 
-						 */
 
 						// Correct for deletion variants. Ref runs into del
 						// territory of CIGAR, so reset subStrEnd to size of
@@ -539,23 +474,9 @@ public class smartPhase {
 						if (subStrEnd == 0) {
 							subStrEnd = subStrStart + allele.length();
 						}
-						
-						
-						/*if(r.getReferencePositionAtReadPosition(subStrStart) != v.getStart()){
-						System.out.println(patGT.toBriefString());
-						System.out.println("read: "+r.getReadString().substring( 
-								  subStrStart, subStrEnd)); 
-						System.out.println("altAllele: "+allele.getDisplayString());
-						System.out.println(subStrStart);
-						System.out.println(subStrEnd);
-						System.out.println(r.getReferencePositionAtReadPosition(subStrStart));
-						System.out.println(v.getStart());
-						System.out.println(r.getCigarString());
-						System.out.println("---");
-						}*/
 
 						// Variant is found in read
-						if(allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 							seenInRead.add(v);
 							// Increase CIS counter for all also found with this
 							// read
@@ -565,7 +486,7 @@ public class smartPhase {
 							// found on this read
 							phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
 						}
-						
+
 					} else {
 						// Correct for deletion variants. Ref runs into del
 						// territory of CIGAR, so reset subStrEnd to size of
@@ -573,9 +494,9 @@ public class smartPhase {
 						if (subStrEnd == 0) {
 							subStrEnd = subStrStart + allele.length();
 						}
-						
+
 						// Variant is not found in read but ref is
-						if(allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 							NOT_SeenInRead.add(v);
 							// Increase CIS counter with all others not found in
 							// read
@@ -585,14 +506,15 @@ public class smartPhase {
 							phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
 						}
 					}
-					
-					
+
 				}
 			}
 		}
+		trimPosVarsInRead = null;
+		trimmedRecords = null;
 
 		if (phaseCounter.size() == 0) {
-			return;
+			return phasedVars;
 		}
 
 		int cisCounter;
@@ -607,6 +529,7 @@ public class smartPhase {
 		hapBlock.addVariant(new VariantContextBuilder(origVar)
 				.genotypes(new GenotypeBuilder(origVar.getGenotype(PATIENT_ID)).attribute("Confidence", 1.0).make())
 				.attribute("Preceding", null).make(), HaplotypeBlock.Strand.STRAND1);
+		origVar = null;
 
 		VariantContext firstVar;
 		VariantContext secondVar;
@@ -628,6 +551,7 @@ public class smartPhase {
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0);
+			key = null;
 			if (cisCounter > transCounter) {
 				globalCis++;
 				double difference = cisCounter - transCounter;
@@ -670,7 +594,7 @@ public class smartPhase {
 		// TODO: Remove inefficiencies created by calculating/storing values
 		// twice for overlapping intervals.
 		phasedVars.put(curInterval, intervalBlocks);
-
+		return phasedVars;
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> updatePhaseCounter(
@@ -699,13 +623,12 @@ public class smartPhase {
 			VariantContext var = inVariantsIterator.next();
 			Genotype patientGT = var.getGenotype(PATIENT_ID);
 
-			// System.out.println("VAR START: "+var.getStart());
-
 			// Check if already phased
 			if (patientGT.isPhased()) {
 				VariantContext vc = new VariantContextBuilder(var)
 						.genotypes(new GenotypeBuilder(patientGT).attribute("Confidence", 1.0).make()).make();
 				outVariants.add(vc);
+				vc = null;
 				continue;
 			}
 
@@ -731,19 +654,54 @@ public class smartPhase {
 
 			// Father and mother must each have at least one allele. If not =>
 			// denovo
-			if (fatherGT.isCalled() && motherGT.isCalled()
-					&& (fatherGT.countAllele(patientAllele1) + fatherGT.countAllele(patientAllele2) < 1
-							|| motherGT.countAllele(patientAllele1) + motherGT.countAllele(patientAllele2) < 1)) {
-				/*
-				System.out.println("---");
-				System.out.println("Patient: " + patientGT.toString());
-				System.out.println("Mother: " + motherGT.toString());
-				System.out.println("Father: " + fatherGT.toString());
-				System.out.println("---");
-				*/
+			if (fatherGT.isCalled() && motherGT.isCalled()){
+				boolean father = false;
+				boolean mother = false;
+				if (fatherGT.countAllele(patientAllele1) < 1 && fatherGT.countAllele(patientAllele2) < 1) {
+					father = true;
+				}
+				
+				if (motherGT.countAllele(patientAllele1) < 1 && motherGT.countAllele(patientAllele2) < 1) {
+					mother = true;
+				}
+				
+				if(father || mother){
+					/*
+					System.out.println("---"); System.out.println("Patient: " +
+							patientGT.toString()); System.out.println("Mother: " + motherGT.toString());
+							System.out.println("Father: " + fatherGT.toString());
+							System.out.print("Alleles: ");
+							for(Allele a : var.getAlleles()){
+								System.out.print(a.getDisplayString()+" ");
+							}
+							System.out.println();
+							
+							if(father){
+								System.out.print("Father: ");
+								for(int pl : fatherGT.getAD()){
+									System.out.print(pl+" ");
+								}
+								System.out.println();
+							}
+							
+							if(mother){
+								System.out.print("Mother: ");
+								for(int pl : motherGT.getAD()){
+									System.out.print(pl+" ");
+								}
+								System.out.println();
+							}
+							
 
-				denovoCounter++;
+							System.out.println("---");
+							*/
+							denovoCounter++;
+				}
+				
+				
 			}
+			motherGT = null;
+			fatherGT = null;
 
 			// Either mother or father contain allele seen in child, but not
 			// both
@@ -768,25 +726,21 @@ public class smartPhase {
 			// that is homozygote has greater chance.
 			else if (Collections.frequency(motherAlleles, patientAllele1) > Collections.frequency(fatherAlleles,
 					patientAllele1)) {
-				// denovoCounter++;
 				motherAllele = patientAllele1;
 				fatherAllele = patientAllele2;
 				confidence = 0.66;
 			} else if (Collections.frequency(motherAlleles, patientAllele2) > Collections.frequency(fatherAlleles,
 					patientAllele2)) {
-				// denovoCounter++;
 				motherAllele = patientAllele2;
 				fatherAllele = patientAllele1;
 				confidence = 0.66;
 			} else if (Collections.frequency(fatherAlleles, patientAllele1) > Collections.frequency(motherAlleles,
 					patientAllele1)) {
-				// denovoCounter++;
 				fatherAllele = patientAllele1;
 				motherAllele = patientAllele2;
 				confidence = 0.66;
 			} else if (Collections.frequency(fatherAlleles, patientAllele2) > Collections.frequency(motherAlleles,
 					patientAllele2)) {
-				// denovoCounter++;
 				fatherAllele = patientAllele2;
 				motherAllele = patientAllele1;
 				confidence = 0.66;
@@ -804,10 +758,9 @@ public class smartPhase {
 				VariantContext vc = new VariantContextBuilder(var).genotypes(phasedGT).make();
 
 				outVariants.add(vc);
+				vc = null;
 			}
 		}
-
-		// System.out.println(outVariants.get(0).getGenotype(PATIENT_ID).getGenotypeString(false));
 
 		// Returns only phased variants
 		return outVariants;
@@ -871,10 +824,6 @@ public class smartPhase {
 				curBlock = hapBlockIt.next();
 			}
 		}
-		// System.out.println("mergeBlock strand1 size:
-		// "+mergeBlock.getStrandVariants(HaplotypeBlock.Strand.STRAND1).size());
-		// System.out.println("mergeBlock strand2 size:
-		// "+mergeBlock.getStrandVariants(HaplotypeBlock.Strand.STRAND2).size());
 		if (mergeBlock != null) {
 			currentBlocks.add(mergeBlock);
 		}
