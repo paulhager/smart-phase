@@ -692,6 +692,24 @@ public class smartPhase {
 								System.out.println();
 							}
 							
+			if (fatherGT.isCalled() && motherGT.isCalled()
+					&& (fatherGT.countAllele(patientAllele1) + fatherGT.countAllele(patientAllele2) < 1
+							|| motherGT.countAllele(patientAllele1) + motherGT.countAllele(patientAllele2) < 1)) {
+				/*
+				 * System.out.println("---"); System.out.println("Patient: " +
+				 * patientGT.toString()); System.out.println("Mother: " + motherGT.toString());
+				 * System.out.println("Father: " + fatherGT.toString());
+				 * System.out.println("---");
+				 */
+			if (fatherGT.isCalled() && motherGT.isCalled()
+					&& (fatherGT.countAllele(patientAllele1) + fatherGT.countAllele(patientAllele2) < 1
+							|| motherGT.countAllele(patientAllele1) + motherGT.countAllele(patientAllele2) < 1)) {
+				/*
+				 * System.out.println("---"); System.out.println("Patient: " +
+				 * patientGT.toString()); System.out.println("Mother: " + motherGT.toString());
+				 * System.out.println("Father: " + fatherGT.toString());
+				 * System.out.println("---");
+				 */
 
 							System.out.println("---");
 							*/

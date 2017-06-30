@@ -31,8 +31,13 @@ public class FilteredVariantReader {
 			contigPointers = new HashMap<String, Long>();
 			
 			/*
+<<<<<<< HEAD
 			raFile = new RandomAccessFile(inFile, "r");
 			contigPointers = new HashMap<String, Long>();
+=======
+			fileName = inFile.getName();
+			fileReader = new BufferedReader(new FileReader(inFile));
+>>>>>>> branch 'master' of https://github.com/paulhager/smart-phase.git
 			*/
 
 			String line;
