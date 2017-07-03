@@ -22,6 +22,8 @@ public class FilteredVariantReader {
 	private int startCol = -1;
 	private int refCol = -1;
 	private int altCol = -1;
+	
+	private boolean vcf = false;
 
 	Set<Integer> startSet = new HashSet<Integer>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
@@ -34,7 +36,9 @@ public class FilteredVariantReader {
 			String line = null;
 			
 			// TODO: If file ends with .gz, handle!!!
-			if(inFile.getPath().endsWith(".vcf") || inFile.getPath().endsWith(".vcf.gz")){				
+			if(inFile.getPath().endsWith(".vcf") || inFile.getPath().endsWith(".vcf.gz")){		
+				vcf = true;
+				
 				// Skip all commented lines if VCF
 				while ((line = raFile.readLine()).startsWith("##")) {
 				}
@@ -142,6 +146,11 @@ public class FilteredVariantReader {
 
 					long stop;
 					long start = Long.parseLong(entries[startCol]);
+					
+					// Gemini is 0-based but rest of program assumes 1-based
+					if(!vcf){
+						start++;
+					}
 					stop = start + allele.length() - 1;
 					
 
