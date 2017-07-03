@@ -152,9 +152,16 @@ public class smartPhase {
 			String line;
 			String header = null;
 			String[] columns;
+			int nameCol = 3;
 
 			while ((line = brBED.readLine()) != null) {
 				if (line.startsWith("#")) {
+					columns = line.split("\\s");
+					for(int x = 0; x < columns.length; x++){
+						if(columns[x].equals("name")){
+							nameCol = x;
+						}
+					}
 					continue;
 				}
 
@@ -170,8 +177,11 @@ public class smartPhase {
 					throw new Exception(
 							"Invalid .bed file. At least three tab or white-space seperated collumns must be present.");
 				}
-
-				iList.add(new Interval(columns[0], Integer.parseInt(columns[1]), Integer.parseInt(columns[2])));
+				String name = null;
+				if(columns.length>3){
+					name = columns[nameCol];
+				}
+				iList.add(new Interval(columns[0], Integer.parseInt(columns[1]), Integer.parseInt(columns[2]), true, name));
 			}
 		} catch (Exception e) {
 			throw new Exception("Exception while reading bed file: \n" + e.getMessage());
@@ -202,8 +212,12 @@ public class smartPhase {
 		while (intervalListIterator.hasNext()) {
 			Interval curInterval = intervalListIterator.next();
 			String intervalContig = curInterval.getContig();
+			String intervalName = "";
 			int intervalStart = curInterval.getStart();
 			int intervalEnd = curInterval.getEnd();
+			if(curInterval.getName() != null){
+				intervalName = curInterval.getName();
+			}
 
 			// KEY: Interval VALUE: List of Lists: each arraylist
 			// represents a haplotype block
@@ -244,7 +258,6 @@ public class smartPhase {
 			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
 					intervalStart, intervalEnd);
 
-			
 			System.out.println("------------------");
 			System.out.println("INTERVAL CONTIG: " + intervalContig);
 			System.out.println("INTERVAL START: " + intervalStart);
@@ -291,7 +304,7 @@ public class smartPhase {
 
 				ArrayList<VariantContext> filtVarList = regionFiltVariantMap.get(curInterval);
 
-				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\n");
+				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t" + intervalName + "\n");
 
 				if (filtVarList.size() == 1) {
 					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
@@ -587,12 +600,14 @@ public class smartPhase {
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0);
+			double total = cisCounter + transCounter;
 			key = null;
 			if (cisCounter > transCounter) {
 				globalCis++;
 				double difference = cisCounter - transCounter;
+				
 				// System.out.println("CIS: "+difference);
-				double confidence = difference / (difference + 2);
+				double confidence = difference / (total + 2);
 				// System.out.println("READ CONF: "+confidence);
 				VariantContext newVar = new VariantContextBuilder(secondVar)
 						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
@@ -604,7 +619,7 @@ public class smartPhase {
 				globalTrans++;
 				double difference = transCounter - cisCounter;
 				// System.out.println("TRANS: "+difference);
-				double confidence = difference / (difference + 2);
+				double confidence = difference / (total + 2);
 				// System.out.println("READ CONF: "+confidence);
 				VariantContext newVar = new VariantContextBuilder(secondVar)
 						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))

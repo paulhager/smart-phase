@@ -33,6 +33,7 @@ public class FilteredVariantReader {
 
 			String line = null;
 			
+			// TODO: If file ends with .gz, handle!!!
 			if(inFile.getPath().endsWith(".vcf") || inFile.getPath().endsWith(".vcf.gz")){				
 				// Skip all commented lines if VCF
 				while ((line = raFile.readLine()).startsWith("##")) {
