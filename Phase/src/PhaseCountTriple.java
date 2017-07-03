@@ -1,4 +1,3 @@
-import java.util.HashSet;
 import java.util.Set;
 
 import htsjdk.variant.variantcontext.VariantContext;
@@ -37,6 +36,7 @@ public class PhaseCountTriple <T, U> {
 			return false;
 		if (!(obj instanceof PhaseCountTriple))
 			return false;
+		@SuppressWarnings("unchecked")
 		PhaseCountTriple<Set<VariantContext>, smartPhase.Phase> other = (PhaseCountTriple<Set<VariantContext>, smartPhase.Phase>) obj;
 		if (phase != other.phase)
 			return false;

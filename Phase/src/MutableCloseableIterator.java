@@ -5,6 +5,7 @@ import java.util.Queue;
 import htsjdk.samtools.util.CloseableIterator;
 import htsjdk.variant.variantcontext.VariantContext;
 
+@SuppressWarnings("hiding")
 public class MutableCloseableIterator<VariantContext> implements CloseableIterator<VariantContext> {
 	
 	private Queue<VariantContext> buffer = new LinkedList<>();

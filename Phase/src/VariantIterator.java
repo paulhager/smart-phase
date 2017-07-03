@@ -4,10 +4,11 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 
 
+@SuppressWarnings("hiding")
 public class VariantIterator<SimpleVariant> implements Iterator<SimpleVariant>{
 	private final Queue<SimpleVariant> buffer = new LinkedList<>();
 	
-	public VariantIterator(Iterator iter) {
+	public VariantIterator(Iterator<SimpleVariant> iter) {
 		super();
 	}
 	
