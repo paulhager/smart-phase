@@ -25,7 +25,7 @@ public class FilteredVariantReader {
 	
 	private boolean vcf = false;
 
-	Set<Integer> startSet = new HashSet<Integer>();
+	Set<String[]> startSet = new HashSet<String[]>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
 
 	public FilteredVariantReader(File inFile) throws Exception {
@@ -152,15 +152,14 @@ public class FilteredVariantReader {
 						start++;
 					}
 					stop = start + allele.length() - 1;
-					
 
 					// Create new variantContext and add
-					if (!startSet.contains(entries.hashCode())) {
+					if (!startSet.contains(entries)) {
 						possibleVariants.add(
 								vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).make());
 					}
 					
-					startSet.add(entries.hashCode());
+					startSet.add(entries);
 					
 					// Check if contig changed
 					if (!possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())) {
