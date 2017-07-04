@@ -7,7 +7,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
+
 import htsjdk.samtools.util.Interval;
+import htsjdk.samtools.util.IntervalList;
 import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
@@ -31,10 +34,15 @@ public class FilteredVariantReader {
 	private ArrayList<VariantContext> allVariants = new ArrayList<VariantContext>();
 
 	Set<String[]> startSet = new HashSet<String[]>();
+	Set<Integer> startSetC = new HashSet<Integer>();
 	Set<String> allVarsContigs = new HashSet<String>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
+	
+	IntervalList iList;
 
-	public FilteredVariantReader(File inFile, boolean cohort, String patID) throws Exception {
+	public FilteredVariantReader(File inFile, boolean cohort, String patID, IntervalList iList) throws Exception {
+		fileName = inFile.getName();
+		this.iList = iList;
 		this.cohort = cohort;
 		try {
 			raFile = new RandomAccessFile(inFile, "r");
@@ -61,17 +69,18 @@ public class FilteredVariantReader {
 							
 							String[] var1Data = var1.split("-");
 							String[] var2Data = var2.split("-");
+														
+							createVC(var1Data);
+							createVC(var2Data);
 							
-							//Ugly but im lazy
+							allVarsContigs.add("chr"+var1Data[0]);
 							
-							VariantContext var1VC = createVC(var1Data);
-							VariantContext var2VC = createVC(var2Data);
+							int intStart = Integer.parseInt(var1Data[1]);
+							intStart = intStart - 100;
+							int intEnd = Integer.parseInt(var2Data[1]);
+							intEnd = intEnd + 100;
 							
-							allVariants.add(var1VC);
-							allVariants.add(var2VC);
-							
-							allVarsContigs.add(var1VC.getContig());
-							
+							this.iList.add(new Interval("chr"+var1Data[0], intStart, intEnd));
 						}
 					} catch (EOFException e) {
 						return;
@@ -152,7 +161,11 @@ public class FilteredVariantReader {
 		}
 	}
 	
-	private VariantContext createVC(String[] data){
+	public IntervalList getiList(){
+		return this.iList;
+	}
+	
+	private void createVC(String[] data){
 		// Parse all alleles
 		ArrayList<Allele> alleles = new ArrayList<Allele>();
 		Allele allele = Allele.create(data[2], true);
@@ -168,7 +181,14 @@ public class FilteredVariantReader {
 		
 		stop = start + allele.length() - 1;
 		
-		return new VariantContextBuilder().source(fileName).chr(data[0]).start(start).stop(stop).alleles(alleles).make();
+		VariantContext varVC = new VariantContextBuilder().source(fileName).chr("chr"+data[0]).start(start).stop(stop).alleles(alleles).make();
+		
+		if(!startSetC.contains(varVC.getStart())){
+			allVariants.add(varVC);
+			startSetC.add(varVC.getStart());
+		}
+		
+		return;
 	}
 	
 	
@@ -187,7 +207,7 @@ public class FilteredVariantReader {
 		
 		if(cohort){
 			ArrayList<VariantContext> scanVars = new ArrayList<VariantContext>(allVariants);
-			scanVars.removeIf(v -> v.getContig() != curInterval.getContig() || v.getStart() < intervalStart || v.getEnd() > intervalEnd);
+			scanVars.removeIf(v -> !v.getContig().equals(curInterval.getContig()) || v.getStart() < intervalStart || v.getEnd() > intervalEnd);
 			return scanVars;
 		}
 		

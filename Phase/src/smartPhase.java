@@ -155,6 +155,7 @@ public class smartPhase {
 				.validationStringency(ValidationStringency.SILENT);
 		IntervalList iList = new IntervalList(samReaderFactory.open(inputREADFILES[0]).getFileHeader());
 
+		if(!COHORT){
 		// Grab all intervals from bed file and store in interval list
 		try (BufferedReader brBED = new BufferedReader(new FileReader(inputBED))) {
 			String line;
@@ -177,7 +178,7 @@ public class smartPhase {
 					header = line;
 					line = brBED.readLine();
 				}
-				// Read in important data from bed file and split [0] = name,
+				// Read in important data from bed file and split [0] = contig,
 				// [1] = rangeStart, [2] = rangeEnd
 				columns = line.split("\\s");
 
@@ -194,12 +195,18 @@ public class smartPhase {
 		} catch (Exception e) {
 			throw new Exception("Exception while reading bed file: \n" + e.getMessage());
 		}
+		}
 
 		iList = iList.uniqued();
 
 		// Read both VCF files
-		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID);
+		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID, iList);
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
+		
+		if(COHORT){
+			iList = filteredVCFReader.getiList();
+			iList = iList.uniqued();
+		}
 
 		ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
 		// Create factory to read bam files and add iterators to list
