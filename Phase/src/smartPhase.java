@@ -78,6 +78,7 @@ public class smartPhase {
 		options.addOption("t", false,
 				"Specify if trio information is available AND contained in original-variants file provided.");
 		options.addOption("d", "ped", true, "Path to file containing vcf IDs of trio.");
+		options.addOption("c", false, "Is this the cohort set?");
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd = parser.parse(options, args);
@@ -95,6 +96,7 @@ public class smartPhase {
 		final File OUTPUT = new File(cmd.getOptionValue("o"));
 		PATIENT_ID = cmd.getOptionValue("p");
 		final boolean TRIO;
+		final boolean COHORT;
 		final File inputPEDIGREE;
 		PedFile familyPed = null;
 		if (cmd.hasOption("t")) {
@@ -104,6 +106,12 @@ public class smartPhase {
 		} else {
 			TRIO = false;
 			inputPEDIGREE = null;
+		}
+		
+		if(cmd.hasOption("c")){
+			COHORT = true;
+		} else {
+			COHORT = false;
 		}
 		
 		// Parse input read files and their desired min MAPQ from command line
@@ -190,7 +198,7 @@ public class smartPhase {
 		iList = iList.uniqued();
 
 		// Read both VCF files
-		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER);
+		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID);
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
 
 		ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
@@ -396,10 +404,13 @@ public class smartPhase {
 			e.printStackTrace();
 		}
 	}
+	
+	public static String grabPatID(){
+		return PATIENT_ID;
+	}
 
 	private static HashMap<Interval, ArrayList<HaplotypeBlock>> readPhase(ArrayList<VariantContext> variantsToPhase,
 			Interval curInterval) throws Exception {
-
 		
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
