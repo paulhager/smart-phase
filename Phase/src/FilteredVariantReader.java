@@ -50,9 +50,9 @@ public class FilteredVariantReader {
 
 			String line = null;
 			
-			if(inFile.getPath().endsWith(".tsv")){
+			if(inFile.getPath().endsWith(".csv")){
 				spliter = ",";
-			}
+			} 
 			
 			if(this.cohort){
 				line = raFile.readLine();
