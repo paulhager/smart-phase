@@ -136,6 +136,7 @@ public class HaplotypeBlock {
 	 * @return Strand
 	 */
 	public Strand getStrandSimVC(VariantContext vc) {
+		
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == vc.getStart()) {
 				return Strand.STRAND1;
@@ -305,13 +306,21 @@ public class HaplotypeBlock {
 	public boolean setPhased(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND1);
+				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
+				} else {
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND1);
+				}
 				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND2);
+				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
+				} else {
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND2);
+				}
 				return true;
 			}
 		}

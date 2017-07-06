@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 
 //import org.apache.commons.lang.*;
 //import org.broadinstitute.gatk.utils.GenomeLocSortedSet.MergeStrategy;
@@ -107,13 +108,13 @@ public class smartPhase {
 			TRIO = false;
 			inputPEDIGREE = null;
 		}
-		
-		if(cmd.hasOption("c")){
+
+		if (cmd.hasOption("c")) {
 			COHORT = true;
 		} else {
 			COHORT = false;
 		}
-		
+
 		// Parse input read files and their desired min MAPQ from command line
 		// string
 		String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
@@ -155,46 +156,48 @@ public class smartPhase {
 				.validationStringency(ValidationStringency.SILENT);
 		IntervalList iList = new IntervalList(samReaderFactory.open(inputREADFILES[0]).getFileHeader());
 
-		if(!COHORT){
-		// Grab all intervals from bed file and store in interval list
-		try (BufferedReader brBED = new BufferedReader(new FileReader(inputBED))) {
-			String line;
-			String header = null;
-			String[] columns;
-			int nameCol = 3;
+		if (!COHORT) {
+			// Grab all intervals from bed file and store in interval list
+			try (BufferedReader brBED = new BufferedReader(new FileReader(inputBED))) {
+				String line;
+				String header = null;
+				String[] columns;
+				int nameCol = 3;
 
-			while ((line = brBED.readLine()) != null) {
-				if (line.startsWith("#")) {
-					columns = line.split("\\s");
-					for(int x = 0; x < columns.length; x++){
-						if(columns[x].equals("name")){
-							nameCol = x;
+				while ((line = brBED.readLine()) != null) {
+					if (line.startsWith("#")) {
+						columns = line.split("\\s");
+						for (int x = 0; x < columns.length; x++) {
+							if (columns[x].equals("name")) {
+								nameCol = x;
+							}
 						}
+						continue;
 					}
-					continue;
-				}
 
-				if (line.startsWith("track") || line.startsWith("browser") && header == null) {
-					header = line;
-					line = brBED.readLine();
-				}
-				// Read in important data from bed file and split [0] = contig,
-				// [1] = rangeStart, [2] = rangeEnd
-				columns = line.split("\\s");
+					if (line.startsWith("track") || line.startsWith("browser") && header == null) {
+						header = line;
+						line = brBED.readLine();
+					}
+					// Read in important data from bed file and split [0] =
+					// contig,
+					// [1] = rangeStart, [2] = rangeEnd
+					columns = line.split("\\s");
 
-				if (columns.length < 3) {
-					throw new Exception(
-							"Invalid .bed file. At least three tab or white-space seperated collumns must be present.");
+					if (columns.length < 3) {
+						throw new Exception(
+								"Invalid .bed file. At least three tab or white-space seperated collumns must be present.");
+					}
+					String name = null;
+					if (columns.length > 3) {
+						name = columns[nameCol];
+					}
+					iList.add(new Interval(columns[0], Integer.parseInt(columns[1]), Integer.parseInt(columns[2]), true,
+							name));
 				}
-				String name = null;
-				if(columns.length>3){
-					name = columns[nameCol];
-				}
-				iList.add(new Interval(columns[0], Integer.parseInt(columns[1]), Integer.parseInt(columns[2]), true, name));
+			} catch (Exception e) {
+				throw new Exception("Exception while reading bed file: \n" + e.getMessage());
 			}
-		} catch (Exception e) {
-			throw new Exception("Exception while reading bed file: \n" + e.getMessage());
-		}
 		}
 
 		iList = iList.uniqued();
@@ -202,8 +205,8 @@ public class smartPhase {
 		// Read both VCF files
 		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID, iList);
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
-		
-		if(COHORT){
+
+		if (COHORT) {
 			iList = filteredVCFReader.getiList();
 			iList = iList.uniqued();
 		}
@@ -230,7 +233,7 @@ public class smartPhase {
 			String intervalName = "";
 			int intervalStart = curInterval.getStart();
 			int intervalEnd = curInterval.getEnd();
-			if(curInterval.getName() != null){
+			if (curInterval.getName() != null) {
 				intervalName = curInterval.getName();
 			}
 
@@ -245,7 +248,7 @@ public class smartPhase {
 			boolean contigSwitch = false;
 			// Contig switched.
 			if (!prevContig.equals(intervalContig)) {
-				for(SAMRecordIterator srIt : samIteratorList){
+				for (SAMRecordIterator srIt : samIteratorList) {
 					srIt.close();
 				}
 				samIteratorList = new ArrayList<SAMRecordIterator>();
@@ -280,11 +283,10 @@ public class smartPhase {
 
 			System.out.println("Filtered Variants found in interval: " + regionFiltVariantList.size());
 
-			
-
 			// MutablePhasedVariantsIterator that stores the phased variants to
 			// be analyzed at end for compound heterozygosity
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
+			variantsToPhase.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
 			regionAllVariantIterator.close();
 			regionAllVariantIterator = null;
 
@@ -319,7 +321,8 @@ public class smartPhase {
 
 				ArrayList<VariantContext> filtVarList = regionFiltVariantMap.get(curInterval);
 
-				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t" + intervalName + "\n");
+				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
+						+ intervalName + "\n");
 
 				if (filtVarList.size() == 1) {
 					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
@@ -329,11 +332,12 @@ public class smartPhase {
 					for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
 						VariantContext outerVariant = filtVarList.get(outerCount);
 						for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
-							boolean phased = false;
+							boolean notPhased = true;
+							boolean tripleHetFlag = false;
+							boolean isTrans = false;
 							VariantContext innerVariant = filtVarList.get(innerCount);
 
 							double totalConfidence = -1;
-							int call = -2;
 							String outAltAllelesString = "";
 							String inAltAllelesString = "";
 							for (HaplotypeBlock hb : phasedVars.get(curInterval)) {
@@ -349,29 +353,55 @@ public class smartPhase {
 								HaplotypeBlock.Strand innerStrand = hb.getStrandSimVC(innerVariant);
 
 								if (outerStrand != null && innerStrand != null) {
+
+									if (trueInnerVariant.getAttributeAsBoolean("TripleHet", false)
+											|| trueOuterVariant.getAttributeAsBoolean("TripleHet", false)) {
+										tripleHetFlag = true;
+									}
+
+									// Ensure genotypes of filt var and saved
+									// vcf var match
+									if (!innerVariant.getGenotype(PATIENT_ID)
+											.sameGenotype(trueInnerVariant.getGenotype(PATIENT_ID), true)
+											|| !outerVariant.getGenotype(PATIENT_ID)
+													.sameGenotype(trueOuterVariant.getGenotype(PATIENT_ID), true)) {
+										throw new Exception("Genotypes of vcf and filtered vars don't match.");
+									}
+
 									totalConfidence = hb.calculateConfidence(trueInnerVariant, trueOuterVariant);
-									phased = true;
-									call  = (outerStrand != innerStrand) ? 1 : 0;
+									notPhased = false;
+									isTrans = (outerStrand != innerStrand) ? true : false;
 									break;
 								}
 							}
-							if (!phased) {
-								call = -1;
+							if (notPhased) {
 								totalConfidence = 0;
 							}
-							
-							for(Allele a : outerVariant.getAlternateAlleles()){
-								outAltAllelesString += a.getBaseString()+",";
+
+							BitSet flagBits = new BitSet(3);
+							flagBits.set(0, isTrans);
+							flagBits.set(1, notPhased);
+							flagBits.set(2, tripleHetFlag);
+
+							for (Allele a : outerVariant.getAlternateAlleles()) {
+								outAltAllelesString += a.getBaseString() + ",";
 							}
-							for(Allele a : innerVariant.getAlternateAlleles()){
-								inAltAllelesString += a.getBaseString()+",";
+							for (Allele a : innerVariant.getAlternateAlleles()) {
+								inAltAllelesString += a.getBaseString() + ",";
 							}
-							outAltAllelesString = outAltAllelesString.substring(0, outAltAllelesString.length()-1);
-							inAltAllelesString = inAltAllelesString.substring(0, inAltAllelesString.length()-1);
-							
-							bwOUTPUT.write(outerVariant.getContig()+"-"+outerVariant.getStart()+"-"+outerVariant.getReference().getBaseString()+"-"+outAltAllelesString+"\t"
-									+ innerVariant.getContig()+"-"+innerVariant.getStart()+"-"+innerVariant.getReference().getBaseString()+"-"+inAltAllelesString+"\t"+call+"\t"
-									+ totalConfidence + "\n");
+							outAltAllelesString = outAltAllelesString.substring(0, outAltAllelesString.length() - 1);
+							inAltAllelesString = inAltAllelesString.substring(0, inAltAllelesString.length() - 1);
+
+							int flag = 0;
+							for (int i = flagBits.nextSetBit(0); i >= 0; i = flagBits.nextSetBit(i + 1)) {
+								flag += (1 << i);
+							}
+
+							bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
+									+ outerVariant.getReference().getBaseString() + "-" + outAltAllelesString + "\t"
+									+ innerVariant.getContig() + "-" + innerVariant.getStart() + "-"
+									+ innerVariant.getReference().getBaseString() + "-" + inAltAllelesString + "\t"
+									+ flag + "\t" + totalConfidence + "\n");
 						}
 					}
 				}
@@ -399,7 +429,7 @@ public class smartPhase {
 		System.out.println("Trans count: " + globalTrans);
 		System.out.println("Newblock count: " + globalNewBlock);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
-		
+
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 			PrintWriter pwOUTPUT = new PrintWriter(bwOUTPUT);
 			pwOUTPUT.println("Denovo count: " + denovoCounter);
@@ -407,18 +437,18 @@ public class smartPhase {
 			pwOUTPUT.println("Trans count: " + globalTrans);
 			pwOUTPUT.println("Newblock count: " + globalNewBlock);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
-		} catch (Exception e){
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
-	
-	public static String grabPatID(){
+
+	public static String grabPatID() {
 		return PATIENT_ID;
 	}
 
 	private static HashMap<Interval, ArrayList<HaplotypeBlock>> readPhase(ArrayList<VariantContext> variantsToPhase,
 			Interval curInterval) throws Exception {
-		
+
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
@@ -442,18 +472,17 @@ public class smartPhase {
 
 			// Add records until start of read exceeds end of interval
 			while ((curRec == null || curRec.getStart() < intervalEnd) && curIterator.hasNext()) {
-				
-				
+
 				curRec = curIterator.next();
-				
+
 				if (curRec.getEnd() >= intervalStart) {
 					readsExamined++;
 				}
-				
-				
+
 				// Only use reads that are mapped and have desired quality
-				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ || (curRec.getReadPairedFlag() && !curRec.getProperPairFlag())
-						|| curRec.getDuplicateReadFlag() || curRec.getNotPrimaryAlignmentFlag()) {
+				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
+						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
+						|| curRec.getNotPrimaryAlignmentFlag()) {
 					continue;
 				}
 
@@ -470,18 +499,18 @@ public class smartPhase {
 			grabLastRec.put(curIterator, curRec);
 		}
 
-		// TODO: All records are saved twice now, requiring double the memory..... all
+		// TODO: All records are saved twice now, requiring double the
+		// memory..... all
 		// because of one record....
 		// Create temp records list to be trimmed at end.
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
-		
+
 		if (curRec.getStart() > intervalEnd && trimmedRecords.size() > 0) {
 			trimmedRecords.remove(trimmedRecords.size() - 1);
 		}
-		
-		System.out.println("Reads examined in interval: "+readsExamined);
+
+		System.out.println("Reads examined in interval: " + readsExamined);
 		System.out.println("Reads passing QC in interval: " + trimmedRecords.size());
-		 
 
 		if (trimmedRecords.size() > 0) {
 			return phasePIR(variantsToPhase, trimmedRecords, curInterval);
@@ -515,16 +544,12 @@ public class smartPhase {
 			for (VariantContext v : trimPosVarsInRead) {
 
 				Genotype patGT = v.getGenotype(PATIENT_ID);
-				// Only look at hetoryzogous genotypes
-				if (!patGT.isHet()) {
-					continue;
-				}
-				
-				//Ensure file is normalized
-				if(v.getNAlleles()>2){
+
+				// Ensure file is normalized
+				if (v.getNAlleles() > 2) {
 					throw new Exception("Only normalized vcf files are allowed.");
 				}
-				
+
 				// Calculate correct position in read to be compared to
 				// alternative alleles in variant
 				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
@@ -538,7 +563,6 @@ public class smartPhase {
 
 				for (Allele allele : patGT.getAlleles()) {
 					// Check alternative allele co-occurence on read
-					// TODO: What if both alleles are nonreference?
 					if (allele.isNonReference()) {
 
 						// Correct for deletion variants. Ref runs into del
@@ -629,7 +653,7 @@ public class smartPhase {
 			if (cisCounter > transCounter) {
 				globalCis++;
 				double difference = cisCounter - transCounter;
-				
+
 				// System.out.println("CIS: "+difference);
 				double confidence = difference / (total + 2);
 				// System.out.println("READ CONF: "+confidence);
@@ -685,7 +709,8 @@ public class smartPhase {
 		return phaseCounter;
 	}
 
-	private static ArrayList<VariantContext> trioPhase(Iterator<VariantContext> inVariantsIterator, PedFile familyPed) throws IOException {
+	private static ArrayList<VariantContext> trioPhase(Iterator<VariantContext> inVariantsIterator, PedFile familyPed)
+			throws IOException {
 		// Read in .ped file and retrieve maternal/paternal IDs
 		String motherID = familyPed.get(PATIENT_ID).getMaternalId();
 		String fatherID = familyPed.get(PATIENT_ID).getPaternalId();
@@ -697,7 +722,6 @@ public class smartPhase {
 			VariantContext var = inVariantsIterator.next();
 			Genotype patientGT = var.getGenotype(PATIENT_ID);
 
-			
 			// Check if already phased
 			if (patientGT.isPhased()) {
 				VariantContext vc = new VariantContextBuilder(var)
@@ -706,13 +730,7 @@ public class smartPhase {
 				vc = null;
 				continue;
 			}
-			
 
-			// Only pat. het. vars are interesting
-			if (!patientGT.isHet()) {
-				continue;
-			}
-			
 			// RESULTS
 			Allele motherAllele = null;
 			Allele fatherAllele = null;
@@ -730,108 +748,87 @@ public class smartPhase {
 
 			// Father and mother must each have at least one allele. If not =>
 			// denovo
-			if (fatherGT.isCalled() && motherGT.isCalled()){
+			if (fatherGT.isCalled() && motherGT.isCalled()) {
 				boolean father = false;
 				boolean mother = false;
-				if (fatherGT.countAllele(patientAllele1) < 1 && fatherGT.countAllele(patientAllele2) < 1 && !fatherGT.getGenotypeString().equals("*/*")) {
+				if (fatherGT.countAllele(patientAllele1) < 1 && fatherGT.countAllele(patientAllele2) < 1
+						&& !fatherGT.getGenotypeString().equals("*/*")) {
 					father = true;
 				}
-				
-				if (motherGT.countAllele(patientAllele1) < 1 && motherGT.countAllele(patientAllele2) < 1 && !motherGT.getGenotypeString().equals("*/*")) {
+
+				if (motherGT.countAllele(patientAllele1) < 1 && motherGT.countAllele(patientAllele2) < 1
+						&& !motherGT.getGenotypeString().equals("*/*")) {
 					mother = true;
 				}
-				
-				if(father || mother){
+
+				if (father || mother) {
 					/*
-					pw.println("---");
-					pw.println("Patient: " +
-							patientGT.toString());
-					pw.println("Mother: " + motherGT.toString());
-					pw.println("Father: " + fatherGT.toString());
-					pw.print("Alleles: ");
-					for(Allele a : var.getAlleles()){
-						pw.print(a.getDisplayString()+" ");
-					}
-					pw.println();
-					if(father){
-						pw.print("Father: ");
-						for(int pl : fatherGT.getAD()){
-							pw.print(pl+" ");
-						}
-						pw.println();
-					}
-					
-					if(mother){
-						pw.print("Mother: ");
-						for(int pl : motherGT.getAD()){
-							pw.print(pl+" ");
-						}
-						pw.println();
-					}
-					
-					System.out.println("---"); System.out.println("Patient: " +
-							patientGT.toString()); System.out.println("Mother: " + motherGT.toString());
-							System.out.println("Father: " + fatherGT.toString());
-							System.out.print("Alleles: ");
-							for(Allele a : var.getAlleles()){
-								System.out.print(a.getDisplayString()+" ");
-							}
-							System.out.println();
-							
-							if(father){
-								System.out.print("Father: ");
-								boolean simpleCall = true;
-								for(int pl : fatherGT.getAD()){
-									if(pl != 0){
-										if(!simpleCall){
-											notSimpleCounter++;
-										}
-										simpleCall = false;
-									}
-									System.out.print(pl+" ");
-								}
-								System.out.println();
-							}
-							
-							if(mother){
-								boolean simpleCall = true;
-								System.out.print("Mother: ");
-								for(int pl : motherGT.getAD()){
-									if(pl != 0){
-										if(!simpleCall){
-											notSimpleCounter++;
-										}
-										simpleCall = false;
-									}
-									System.out.print(pl+" ");
-								}
-								System.out.println();
-							}
-							
-					
-					 	*/
-					denovoCounter++;	
+					 * pw.println("---"); pw.println("Patient: " +
+					 * patientGT.toString()); pw.println("Mother: " +
+					 * motherGT.toString()); pw.println("Father: " +
+					 * fatherGT.toString()); pw.print("Alleles: "); for(Allele a
+					 * : var.getAlleles()){ pw.print(a.getDisplayString()+" ");
+					 * } pw.println(); if(father){ pw.print("Father: "); for(int
+					 * pl : fatherGT.getAD()){ pw.print(pl+" "); } pw.println();
+					 * }
+					 * 
+					 * if(mother){ pw.print("Mother: "); for(int pl :
+					 * motherGT.getAD()){ pw.print(pl+" "); } pw.println(); }
+					 * 
+					 * System.out.println("---"); System.out.println("Patient: "
+					 * + patientGT.toString()); System.out.println("Mother: " +
+					 * motherGT.toString()); System.out.println("Father: " +
+					 * fatherGT.toString()); System.out.print("Alleles: ");
+					 * for(Allele a : var.getAlleles()){
+					 * System.out.print(a.getDisplayString()+" "); }
+					 * System.out.println();
+					 * 
+					 * if(father){ System.out.print("Father: "); boolean
+					 * simpleCall = true; for(int pl : fatherGT.getAD()){ if(pl
+					 * != 0){ if(!simpleCall){ notSimpleCounter++; } simpleCall
+					 * = false; } System.out.print(pl+" "); }
+					 * System.out.println(); }
+					 * 
+					 * if(mother){ boolean simpleCall = true;
+					 * System.out.print("Mother: "); for(int pl :
+					 * motherGT.getAD()){ if(pl != 0){ if(!simpleCall){
+					 * notSimpleCounter++; } simpleCall = false; }
+					 * System.out.print(pl+" "); } System.out.println(); }
+					 * 
+					 * 
+					 */
+					denovoCounter++;
 				}
 			}
-			
+
+			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) {
+				VariantContext vc = new VariantContextBuilder(var).attribute("TripleHet", true).make();
+				outVariants.add(vc);
+				continue;
+			}
+
 			motherGT = null;
 			fatherGT = null;
 
 			// Either mother or father contain allele seen in child, but not
 			// both
-			if (motherAlleles.contains(patientAllele1) && !fatherAlleles.contains(patientAllele1)) {
+			if (motherAlleles.contains(patientAllele1) && !fatherAlleles.contains(patientAllele1)
+					&& fatherAlleles.contains(patientAllele2)) {
 				motherAllele = patientAllele1;
 				fatherAllele = patientAllele2;
 				confidence = 1.0;
-			} else if (motherAlleles.contains(patientAllele2) && !fatherAlleles.contains(patientAllele2)) {
+			} else if (motherAlleles.contains(patientAllele2) && !fatherAlleles.contains(patientAllele2)
+					&& fatherAlleles.contains(patientAllele1)) {
 				motherAllele = patientAllele2;
 				fatherAllele = patientAllele1;
 				confidence = 1.0;
-			} else if (fatherAlleles.contains(patientAllele1) && !motherAlleles.contains(patientAllele1)) {
+			} else if (fatherAlleles.contains(patientAllele1) && !motherAlleles.contains(patientAllele1)
+					&& motherAlleles.contains(patientAllele2)) {
 				fatherAllele = patientAllele1;
 				motherAllele = patientAllele2;
 				confidence = 1.0;
-			} else if (fatherAlleles.contains(patientAllele2) && !motherAlleles.contains(patientAllele2)) {
+			} else if (fatherAlleles.contains(patientAllele2) && !motherAlleles.contains(patientAllele2)
+					&& motherAlleles.contains(patientAllele1)) {
 				fatherAllele = patientAllele2;
 				motherAllele = patientAllele1;
 				confidence = 1.0;
@@ -874,9 +871,9 @@ public class smartPhase {
 				outVariants.add(vc);
 				vc = null;
 			}
-			
+
 		}
-		
+
 		// Returns only phased variants
 		return outVariants;
 	}
@@ -944,5 +941,10 @@ public class smartPhase {
 		}
 		return currentBlocks;
 	}
+	
+	private static void checkContradictions(){
+		
+	}
+	
 
 }

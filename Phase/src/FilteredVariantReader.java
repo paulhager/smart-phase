@@ -14,6 +14,7 @@ import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
 import htsjdk.samtools.util.Interval;
 import htsjdk.samtools.util.IntervalList;
 import htsjdk.variant.variantcontext.Allele;
+import htsjdk.variant.variantcontext.GenotypeBuilder;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 
@@ -30,6 +31,8 @@ public class FilteredVariantReader {
 	
 	private String spliter = "\\t";
 	
+	private String patientID = "";
+	
 	private boolean vcf = false;
 	private boolean cohort;
 	
@@ -43,6 +46,7 @@ public class FilteredVariantReader {
 	IntervalList iList;
 
 	public FilteredVariantReader(File inFile, boolean cohort, String patID, IntervalList iList) throws Exception {
+		patientID = patID;
 		fileName = inFile.getName();
 		this.iList = iList;
 		this.cohort = cohort;
@@ -263,11 +267,16 @@ public class FilteredVariantReader {
 					ArrayList<Allele> alleles = new ArrayList<Allele>();
 					Allele allele = Allele.create(entries[refCol], true);
 					alleles.add(allele);
-					String[] nonRefAlleles = entries[altCol].split(",");
-					for (String alleleString : nonRefAlleles) {
-						Allele a = Allele.create(alleleString, false);
-						alleles.add(a);
+					
+					// Ensure file is normalized
+					String nonRefAllele = entries[altCol];
+					if(nonRefAllele.indexOf(",") != -1){
+						throw new Exception("Only normalized variant containing files are accepted!");
 					}
+					Allele a = Allele.create(nonRefAllele, false);
+					alleles.add(a);
+					
+					
 
 					long stop;
 					long start = Long.parseLong(entries[startCol]);
@@ -281,7 +290,7 @@ public class FilteredVariantReader {
 					// Create new variantContext and add
 					if (!startSet.contains(entries)) {
 						possibleVariants.add(
-								vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).make());
+								vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make());
 					}
 					
 					startSet.add(entries);
@@ -296,6 +305,9 @@ public class FilteredVariantReader {
 				
 			} catch (EOFException e) {
 				break;
+			} catch (Exception e) {
+				e.printStackTrace();
+				System.exit(1);
 			}
 			
 		}
