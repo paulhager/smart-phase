@@ -147,16 +147,28 @@ public class FilteredVariantReader {
 			// Save all contig start positions in file
 			String curContig = "";
 			long prevLinePointer = raFile.getFilePointer();
+			int prevStart = 0;
 			while(true) {
 				try {
 					line = raFile.readLine();
 					if(line == null) {
 						break;
 					}
-					if(!line.split(spliter)[0].equals(curContig)) {
-						curContig = line.split(spliter)[0];
+					
+					String[] splitLine = line.split(spliter);
+					String actContig = splitLine[0];
+					if(!actContig.equals(curContig)) {
+						curContig = actContig;
 						contigPointers.put(curContig, prevLinePointer);
+						prevStart = 0;
 					}
+					int curStart = Integer.parseInt(splitLine[1]);
+					// Ensure within chr. that all vars are start sorted
+					if(prevStart > curStart){
+						throw new Exception("ERROR! Filtered variants list must be grouped by chromosome and sorted by start position within each chromosome. The offending variants are: (prev) "+actContig+"-"+prevStart+" || "+actContig+"-"+curStart);
+					}
+					prevStart = curStart;
+					
 					prevLinePointer = raFile.getFilePointer();
 				} catch (EOFException e) {
 					break;

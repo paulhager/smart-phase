@@ -519,6 +519,12 @@ public class smartPhase {
 				if (!patGT.isHet()) {
 					continue;
 				}
+				
+				//Ensure file is normalized
+				if(v.getNAlleles()>2){
+					throw new Exception("Only normalized vcf files are allowed.");
+				}
+				
 				// Calculate correct position in read to be compared to
 				// alternative alleles in variant
 				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
