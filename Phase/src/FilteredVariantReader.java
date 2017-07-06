@@ -3,8 +3,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
@@ -62,8 +64,16 @@ public class FilteredVariantReader {
 						if(line == null) {
 							break;
 						}
-						String[] cols=line.split(",");
-						if(cols[0].indexOf(patID+" ") != -1){
+						String[] cols=line.split(spliter);
+						if(cols.length==1){
+							throw new Exception("While parsing filtered variants, tried to split using \'"+spliter+"\' but failed. Please ensure your file is tab-seperated, or ends in .csv if it is comma separated.");
+						}
+						if(cols.length == 2){
+							continue;
+						}
+						List<String> samples = Arrays.asList(cols[0].split(","));
+						samples.forEach(s -> s.trim());
+						if(samples.contains(patID)){
 							String var1 = cols[1];
 							String var2 = cols[2];
 							
@@ -73,14 +83,18 @@ public class FilteredVariantReader {
 							createVC(var1Data);
 							createVC(var2Data);
 							
-							allVarsContigs.add("chr"+var1Data[0]);
+							String chrom = var1Data[0];
+							if(!chrom.startsWith("chr")){
+								chrom = "chr"+chrom;
+							}
+							allVarsContigs.add(chrom);
 							
 							int intStart = Integer.parseInt(var1Data[1]);
 							intStart = intStart - 100;
 							int intEnd = Integer.parseInt(var2Data[1]);
 							intEnd = intEnd + 100;
 							
-							this.iList.add(new Interval("chr"+var1Data[0], intStart, intEnd));
+							this.iList.add(new Interval(chrom, intStart, intEnd));
 						}
 					} catch (EOFException e) {
 						return;
@@ -181,7 +195,12 @@ public class FilteredVariantReader {
 		
 		stop = start + allele.length() - 1;
 		
-		VariantContext varVC = new VariantContextBuilder().source(fileName).chr("chr"+data[0]).start(start).stop(stop).alleles(alleles).make();
+		String chrom = data[0];
+		if(!chrom.startsWith("chr")){
+			chrom = "chr"+chrom;
+		}
+		
+		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).make();
 		
 		if(!startSetC.contains(varVC.getStart())){
 			allVariants.add(varVC);
