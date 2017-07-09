@@ -212,6 +212,8 @@ public class HaplotypeBlock {
 	public double calculateConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
+		
+		
 
 		// No trio info available
 		if (nearestTrioVC1 == null || nearestTrioVC2 == null) {
@@ -220,7 +222,10 @@ public class HaplotypeBlock {
 		
 		// Get final product confidence score using trio
 		confidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
+		cpTrio1.setConfidence(cpTrio1.confidence()*(double)nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
+		
 		confidencePair<Double, Integer> cpTrio2 = multiplyConfidence(vc2, nearestTrioVC2);
+		cpTrio1.setConfidence(cpTrio2.confidence()*(double)nearestTrioVC2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 		
 		// Try to calculate confidence using only read conf. scores if both variants are in same mergeBlock. 
 		if(vc1.getAttributeAsInt("mergedBlocks", -1) == vc2.getAttributeAsInt("mergedBlocks", -1)){
@@ -263,7 +268,7 @@ public class HaplotypeBlock {
 		double product = 1;
 		
 		if(vc1 == vc2){
-			return new confidencePair<Double, Integer>((double) vc1.getGenotype(PATIENT_ID).getAnyAttribute("Confidence"), 0);
+			return new confidencePair<Double, Integer>(1.0, 0);
 		}
 		
 		// Variants must be in same mergeBlock, or else something is wrong
@@ -286,14 +291,13 @@ public class HaplotypeBlock {
 		// way
 		int cnt = 1;
 		while (curVC.getStart() != end) {
-			product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("Confidence");
-			//System.out.println(cnt+"\t"+curVC.toStringDecodeGenotypes());
+			product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence");
 			cnt++;
 			curVC = this.getSimVC((VariantContext) curVC.getAttribute("Preceding"));
 		}
-		//System.out.println(cnt+"\t"+curVC.toStringDecodeGenotypes());
-		product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("Confidence");
+		product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence");
 		
+				
 		return new confidencePair<Double, Integer>(product, cnt);
 	}
 
@@ -307,9 +311,9 @@ public class HaplotypeBlock {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
 				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
 				} else {
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND1);
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND1);
 				}
 				return true;
 			}
@@ -317,10 +321,33 @@ public class HaplotypeBlock {
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
 				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
 				} else {
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).make()).make(), posVC, Strand.STRAND2);
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND2);
 				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	
+	/**
+	 * Set TripleHet attribute of a variant's patient_GT context to true.
+	 * @param trioVar - Variant whose phase is to be changed
+	 * @return True - If var found
+	 * 		   False - If var not found
+	 */
+	public boolean setTripHet(VariantContext trioVar) {
+		for (VariantContext posVC : strand1) {
+			if (posVC.getStart() == trioVar.getStart()) {
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
+				return true;
+			}
+		}
+		for (VariantContext posVC : strand2) {
+			if (posVC.getStart() == trioVar.getStart()) {
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
 				return true;
 			}
 		}

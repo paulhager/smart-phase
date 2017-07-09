@@ -16,4 +16,8 @@ public class confidencePair<D, I> {
 	public I steps(){
 		return this.steps;
 	}
+	
+	public void setConfidence(D newConf){
+		this.confidence = newConf;
+	}
 }

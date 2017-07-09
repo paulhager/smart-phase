@@ -22,6 +22,8 @@ import java.util.BitSet;
 //import org.broadinstitute.gatk.utils.genotyper.AlleleList;
 import org.apache.commons.cli.*;
 
+import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
+
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SamReader;
@@ -303,6 +305,7 @@ public class smartPhase {
 				variantsToPhase = null;
 				// Only merge if there are blocks to be merged
 				if (phasedVars.containsKey(curInterval)) {
+					checkContradictions(trioPhasedVariants, phasedVars.get(curInterval));
 					phasedVars.put(curInterval, mergeBlocks(trioPhasedVariants, phasedVars.get(curInterval)));
 				}
 			}
@@ -332,6 +335,8 @@ public class smartPhase {
 					for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
 						VariantContext outerVariant = filtVarList.get(outerCount);
 						for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
+							
+							
 							boolean notPhased = true;
 							boolean tripleHetFlag = false;
 							boolean isTrans = false;
@@ -351,13 +356,16 @@ public class smartPhase {
 								VariantContext trueInnerVariant = hb.getSimVC(innerVariant);
 								HaplotypeBlock.Strand outerStrand = hb.getStrandSimVC(outerVariant);
 								HaplotypeBlock.Strand innerStrand = hb.getStrandSimVC(innerVariant);
+								
+								if(outerStrand != null && trueOuterVariant.getAttributeAsBoolean("TripleHet", false)){
+									tripleHetFlag = true;
+								}
+								
+								if(innerStrand != null && trueInnerVariant.getAttributeAsBoolean("TripleHet", false)){
+									tripleHetFlag = true;
+								}
 
 								if (outerStrand != null && innerStrand != null) {
-
-									if (trueInnerVariant.getAttributeAsBoolean("TripleHet", false)
-											|| trueOuterVariant.getAttributeAsBoolean("TripleHet", false)) {
-										tripleHetFlag = true;
-									}
 
 									// Ensure genotypes of filt var and saved
 									// vcf var match
@@ -455,10 +463,6 @@ public class smartPhase {
 		int intervalEnd = curInterval.getEnd();
 		String intervalContig = curInterval.getContig();
 
-		// Because variants are start sorted, reads with end less than
-		// intervalStart will never be relevant again
-		curRecords.removeIf(r -> r.getEnd() < intervalStart);
-
 		System.out.println("Variants found in interval: " + variantsToPhase.size());
 
 		int readsExamined = 0;
@@ -498,6 +502,10 @@ public class smartPhase {
 			// looked at by current iterator
 			grabLastRec.put(curIterator, curRec);
 		}
+		
+		// Because variants are start sorted, reads with end less than
+		// intervalStart will never be relevant again
+		curRecords.removeIf(r -> r.getEnd() < intervalStart);
 
 		// TODO: All records are saved twice now, requiring double the
 		// memory..... all
@@ -537,6 +545,7 @@ public class smartPhase {
 			if (trimPosVarsInRead.size() < 2) {
 				continue;
 			}
+			
 
 			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
 			ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
@@ -548,32 +557,43 @@ public class smartPhase {
 				// Ensure file is normalized
 				if (v.getNAlleles() > 2) {
 					throw new Exception("Only normalized vcf files are allowed.");
-				}
-
-				// Calculate correct position in read to be compared to
-				// alternative alleles in variant
-				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
-				int subStrEnd = r.getReadPositionAtReferencePosition(v.getEnd(), false);
-
-				// Disregard variants who start in the middle of deletions as
-				// these aren't called correctly.
-				if (subStrStart == -1) {
-					continue;
-				}
+				}				
+				
+				// Check if deletion is on this read and if variant is deletion variant
+				boolean del = (r.getReadPositionAtReferencePosition(v.getEnd(), false) == 0) ? true : false;
+				boolean delVar = (v.isSimpleDeletion()) ? true : false;
+				
+				// Determine if insert
+				boolean insertVar = (v.isSimpleInsertion()) ? true : false;
+				boolean insert  = (r.getReadPositionAtReferencePosition(v.getStart()+1, false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true: false;
+				
 
 				for (Allele allele : patGT.getAlleles()) {
-					// Check alternative allele co-occurence on read
-					if (allele.isNonReference()) {
+					// Calculate correct position in read to be compared to
+					// alternative alleles in variant
+					int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
+					int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
 
-						// Correct for deletion variants. Ref runs into del
-						// territory of CIGAR, so reset subStrEnd to size of
-						// alt. allele to see if it matches to alt allele
-						if (subStrEnd == 0) {
-							subStrEnd = subStrStart + allele.length();
+					// Disregard variants who start in the middle of deletions as
+					// these aren't called correctly.
+					if (subStrStart == -1 || subStrEnd == 0) {
+						continue;
+					}
+					
+					if(insert && insertVar){
+						subStrEnd = r.getReadPositionAtReferencePosition(v.getStart()+1, false)-1;
+						if(subStrEnd == -1){
+							continue;
 						}
+					}
+					
+					
+					// Check alternative allele co-occurence on read
+					if (allele.isNonReference() && (!delVar || del) && (!insertVar || insert)) {
 
 						// Variant is found in read
 						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+							
 							seenInRead.add(v);
 							// Increase CIS counter for all also found with this
 							// read
@@ -584,16 +604,11 @@ public class smartPhase {
 							phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
 						}
 
-					} else {
-						// Correct for deletion variants. Ref runs into del
-						// territory of CIGAR, so reset subStrEnd to size of
-						// alt. allele to see if it matches to alt allele
-						if (subStrEnd == 0) {
-							subStrEnd = subStrStart + allele.length();
-						}
+					} else if (allele.isReference() && (!delVar || !del) && (!insertVar || !insert)) {
 
 						// Variant is not found in read but ref is
 						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+							
 							NOT_SeenInRead.add(v);
 							// Increase CIS counter with all others not found in
 							// read
@@ -624,7 +639,7 @@ public class smartPhase {
 		HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
 		VariantContext origVar = variantsToPhase.get(0);
 		hapBlock.addVariant(new VariantContextBuilder(origVar)
-				.genotypes(new GenotypeBuilder(origVar.getGenotype(PATIENT_ID)).attribute("Confidence", 1.0).make())
+				.genotypes(new GenotypeBuilder(origVar.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 				.attribute("Preceding", null).make(), HaplotypeBlock.Strand.STRAND1);
 		origVar = null;
 
@@ -648,42 +663,44 @@ public class smartPhase {
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0);
+			
+			if((firstVar.getStart() == 2689017 && secondVar.getStart() == 2689085) || (firstVar.getStart() == 3495469 && secondVar.getStart() == 3495541) || (firstVar.getStart() == 1266305 && secondVar.getStart() == 1266324) || (firstVar.getStart() == 1266324 && secondVar.getStart() == 1266422) || (firstVar.getStart() == 1266422 && secondVar.getStart() == 1266423) || (firstVar.getStart() == 1266423 && secondVar.getStart() == 1266425) || (firstVar.getStart() == 1266425 && secondVar.getStart() == 1266481) || (firstVar.getStart() == 1266481 && secondVar.getStart() == 1266484)){
+				System.out.println("first: "+firstVar.getStart());
+				System.out.println("second: "+secondVar.getStart());
+				System.out.println("cis: "+cisCounter);
+				System.out.println("trans: "+transCounter);
+			}
+			
 			double total = cisCounter + transCounter;
 			key = null;
 			if (cisCounter > transCounter) {
 				globalCis++;
 				double difference = cisCounter - transCounter;
 
-				// System.out.println("CIS: "+difference);
 				double confidence = difference / (total + 2);
-				// System.out.println("READ CONF: "+confidence);
 				VariantContext newVar = new VariantContextBuilder(secondVar)
 						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-								.attribute("Confidence", confidence).make())
+								.attribute("ReadConfidence", confidence).make())
 						.attribute("Preceding", firstVar).make();
 
 				hapBlock.addVariant(newVar, firstVarStrand);
 			} else if (transCounter > cisCounter) {
 				globalTrans++;
 				double difference = transCounter - cisCounter;
-				// System.out.println("TRANS: "+difference);
 				double confidence = difference / (total + 2);
-				// System.out.println("READ CONF: "+confidence);
 				VariantContext newVar = new VariantContextBuilder(secondVar)
 						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-								.attribute("Confidence", confidence).make())
+								.attribute("ReadConfidence", confidence).make())
 						.attribute("Preceding", firstVar).make();
 
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
-				// System.out.println("NEW BLOCK");
-
 				intervalBlocks.add(hapBlock);
 				hapBlock = new HaplotypeBlock(PATIENT_ID);
 				VariantContext newVar = new VariantContextBuilder(secondVar).genotypes(
-						new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID)).attribute("Confidence", 1.0).make())
+						new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 						.attribute("Preceding", null).make();
 				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
 			}
@@ -725,7 +742,7 @@ public class smartPhase {
 			// Check if already phased
 			if (patientGT.isPhased()) {
 				VariantContext vc = new VariantContextBuilder(var)
-						.genotypes(new GenotypeBuilder(patientGT).attribute("Confidence", 1.0).make()).make();
+						.genotypes(new GenotypeBuilder(patientGT).attribute("TrioConfidence", 1.0).make()).make();
 				outVariants.add(vc);
 				vc = null;
 				continue;
@@ -802,8 +819,11 @@ public class smartPhase {
 			}
 
 			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) {
-				VariantContext vc = new VariantContextBuilder(var).attribute("TripleHet", true).make();
-				outVariants.add(vc);
+				outVariants.add(new VariantContextBuilder(var).attribute("TripleHet", true).make());
+				continue;
+			}
+			
+			if(motherGT.isNoCall() || fatherGT.isNoCall()){
 				continue;
 			}
 
@@ -812,46 +832,38 @@ public class smartPhase {
 
 			// Either mother or father contain allele seen in child, but not
 			// both
-			if (motherAlleles.contains(patientAllele1) && !fatherAlleles.contains(patientAllele1)
-					&& fatherAlleles.contains(patientAllele2)) {
+			if ((motherAlleles.contains(patientAllele1) && !fatherAlleles.contains(patientAllele1)
+					&& fatherAlleles.contains(patientAllele2)) || (fatherAlleles.contains(patientAllele2) && !motherAlleles.contains(patientAllele2)
+					&& motherAlleles.contains(patientAllele1))) {
 				motherAllele = patientAllele1;
 				fatherAllele = patientAllele2;
 				confidence = 1.0;
-			} else if (motherAlleles.contains(patientAllele2) && !fatherAlleles.contains(patientAllele2)
-					&& fatherAlleles.contains(patientAllele1)) {
+			} else if ((motherAlleles.contains(patientAllele2) && !fatherAlleles.contains(patientAllele2)
+					&& fatherAlleles.contains(patientAllele1)) || (fatherAlleles.contains(patientAllele1) && !motherAlleles.contains(patientAllele1)
+							&& motherAlleles.contains(patientAllele2))) {
 				motherAllele = patientAllele2;
 				fatherAllele = patientAllele1;
 				confidence = 1.0;
-			} else if (fatherAlleles.contains(patientAllele1) && !motherAlleles.contains(patientAllele1)
-					&& motherAlleles.contains(patientAllele2)) {
-				fatherAllele = patientAllele1;
-				motherAllele = patientAllele2;
-				confidence = 1.0;
-			} else if (fatherAlleles.contains(patientAllele2) && !motherAlleles.contains(patientAllele2)
-					&& motherAlleles.contains(patientAllele1)) {
-				fatherAllele = patientAllele2;
-				motherAllele = patientAllele1;
-				confidence = 1.0;
-			}
+			} 
 			// Denovo mutation and other allele is found in both parents. Parent
 			// that is homozygote has greater chance.
-			else if (Collections.frequency(motherAlleles, patientAllele1) > Collections.frequency(fatherAlleles,
-					patientAllele1)) {
+			else if (Collections.frequency(motherAlleles, patientAllele1) == 2 && Collections.frequency(fatherAlleles,
+					patientAllele1) == 1) {
 				motherAllele = patientAllele1;
 				fatherAllele = patientAllele2;
 				confidence = 0.66;
-			} else if (Collections.frequency(motherAlleles, patientAllele2) > Collections.frequency(fatherAlleles,
-					patientAllele2)) {
+			} else if (Collections.frequency(motherAlleles, patientAllele2) == 2 && Collections.frequency(fatherAlleles,
+					patientAllele2) == 1) {
 				motherAllele = patientAllele2;
 				fatherAllele = patientAllele1;
 				confidence = 0.66;
-			} else if (Collections.frequency(fatherAlleles, patientAllele1) > Collections.frequency(motherAlleles,
-					patientAllele1)) {
+			} else if (Collections.frequency(fatherAlleles, patientAllele1) == 2 && Collections.frequency(motherAlleles,
+					patientAllele1) == 1) {
 				fatherAllele = patientAllele1;
 				motherAllele = patientAllele2;
 				confidence = 0.66;
-			} else if (Collections.frequency(fatherAlleles, patientAllele2) > Collections.frequency(motherAlleles,
-					patientAllele2)) {
+			} else if (Collections.frequency(fatherAlleles, patientAllele2) == 2 && Collections.frequency(motherAlleles,
+					patientAllele2) == 1) {
 				fatherAllele = patientAllele2;
 				motherAllele = patientAllele1;
 				confidence = 0.66;
@@ -863,7 +875,7 @@ public class smartPhase {
 				alleles.add(motherAllele);
 				alleles.add(fatherAllele);
 
-				Genotype phasedGT = new GenotypeBuilder(patientGT).phased(true).attribute("Confidence", confidence)
+				Genotype phasedGT = new GenotypeBuilder(patientGT).phased(true).attribute("TrioConfidence", confidence)
 						.alleles(alleles).make();
 
 				VariantContext vc = new VariantContextBuilder(var).genotypes(phasedGT).make();
@@ -892,12 +904,19 @@ public class smartPhase {
 
 		int mergeBlockCntr = 2;
 		for (VariantContext trioVar : trioPhasedVars) {
+			
+			if(!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("TripleHet", false)){
+				continue;
+			}
+			
 			// Increment blocks as long as var is ahead of block
 			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
 				curBlock = hapBlockIt.next();
 			}
 			// Check if current trio var lands in current block. If yes, merge
 			while (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
+				
+				// Initialize mergeblock to first block containing trio var
 				if (mergeBlock == null) {
 					mergeBlock = curBlock;
 					prevTrioVar = trioVar;
@@ -907,8 +926,8 @@ public class smartPhase {
 				}
 
 				// [0] is always mother. [1] is always father
-				String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("|");
-				String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("|");
+				String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+				String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 
 				HaplotypeBlock.Strand prevStrand = mergeBlock.getStrandSimVC(prevTrioVar);
 				HaplotypeBlock.Strand prevOppStrand = mergeBlock.getOppStrand(prevStrand);
@@ -941,10 +960,78 @@ public class smartPhase {
 		}
 		return currentBlocks;
 	}
-	
-	private static void checkContradictions(){
-		
+
+	private static void checkContradictions(ArrayList<VariantContext> trioPhasedVars,
+			ArrayList<HaplotypeBlock> currentBlocks) throws Exception {
+
+		Iterator<HaplotypeBlock> hapBlockIt = currentBlocks.iterator();
+		VariantContext prevTrioVar = null;
+		HaplotypeBlock curBlock = null;
+
+		if (hapBlockIt.hasNext()) {
+			curBlock = hapBlockIt.next();
+		} else {
+			return;
+		}
+
+		for (VariantContext trioVar : trioPhasedVars) {
+			// Increment blocks as long as var is ahead of block
+			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
+				prevTrioVar = null;
+				curBlock = hapBlockIt.next();
+			}
+
+			// Check if current trio var lands in current block. If yes, check for incongruencies
+			if (curBlock.getStrandSimVC(trioVar) != null) {
+				if(!trioVar.getGenotype(PATIENT_ID).isPhased() && (trioVar.getAttributeAsBoolean("TripleHet", false))){
+					if(curBlock.setTripHet(trioVar)){
+						System.out.println(curBlock.getSimVC(trioVar).getAttributeAsBoolean("TripleHet", false));
+					}
+					continue;
+				}
+				if(prevTrioVar == null){
+					prevTrioVar = trioVar;
+					continue;
+				}
+				
+				HaplotypeBlock.Strand prevStrand = curBlock.getStrandSimVC(prevTrioVar);
+				HaplotypeBlock.Strand curStrand = curBlock.getStrandSimVC(trioVar);
+				
+				String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+				String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+				// CIS
+				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
+						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+					if(prevStrand != curStrand){
+						
+						System.out.println(prevTrioVar.getStart());
+						System.out.println(trioVar.getStart());
+						System.out.println(prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
+						System.out.println(trioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
+						System.out.println(prevStrand.toString());
+						System.out.println(curStrand.toString());
+						System.out.println(curBlock.getSimVC(trioVar).getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence"));
+						System.out.println("---");
+						//throw new Exception("c - CONTRADICTION");
+					}
+				}
+				// TRANS
+				else {
+					if(prevStrand == curStrand){
+						System.out.println(prevTrioVar.getStart());
+						System.out.println(trioVar.getStart());
+						System.out.println(prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
+						System.out.println(trioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
+						System.out.println(prevStrand.toString());
+						System.out.println(curStrand.toString());
+						System.out.println(curBlock.getSimVC(trioVar).getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence"));
+						System.out.println("---");
+						//throw new Exception("t - CONTRADICTION");
+					}
+				}
+				prevTrioVar = trioVar;
+			}
+		}
 	}
-	
 
 }
