@@ -413,7 +413,6 @@ public class smartPhase {
 					
 					// Inform user of missing vars
 					for(VariantContext missingVar : missingVars){
-						System.out.println("missing var");
 						System.err.println("Could not find variant: "+missingVar.getContig() + "-" + missingVar.getStart() + "-" + missingVar.getReference().getBaseString() + "-" + missingVar.getAlternateAllele(0).getBaseString());
 					}
 				}

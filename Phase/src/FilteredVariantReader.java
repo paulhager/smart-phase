@@ -205,7 +205,6 @@ public class FilteredVariantReader {
 
 		long stop;
 		long start = Long.parseLong(data[1]);
-		start++;
 		
 		stop = start + allele.length() - 1;
 		
