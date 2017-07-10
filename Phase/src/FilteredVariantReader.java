@@ -9,8 +9,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.sun.scenario.effect.impl.sw.sse.SSEBlend_COLOR_BURNPeer;
-
 import htsjdk.samtools.util.Interval;
 import htsjdk.samtools.util.IntervalList;
 import htsjdk.variant.variantcontext.Allele;
@@ -76,7 +74,9 @@ public class FilteredVariantReader {
 							continue;
 						}
 						List<String> samples = Arrays.asList(cols[0].split(","));
-						samples.forEach(s -> s.trim());
+						for(String sample : samples){
+							samples.set(samples.indexOf(sample), sample.trim());
+						}
 						if(samples.contains(patID)){
 							String var1 = cols[1];
 							String var2 = cols[2];

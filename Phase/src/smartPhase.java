@@ -423,6 +423,7 @@ public class smartPhase {
 					
 					// Inform user of missing vars
 					for(VariantContext missingVar : missingVars){
+						System.out.println("missing var");
 						System.err.println("Could not find variant: "+missingVar.getContig() + "-" + missingVar.getStart() + "-" + missingVar.getReference().getBaseString() + "-" + missingVar.getAlternateAllele(0).getBaseString());
 					}
 				}
@@ -642,8 +643,8 @@ public class smartPhase {
 			return phasedVars;
 		}
 
-		int cisCounter;
-		int transCounter;
+		double cisCounter;
+		double transCounter;
 
 		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
 
@@ -714,49 +715,40 @@ public class smartPhase {
 				String[] prevTrioSplit = firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 				String[] curTrioSplit = secondTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 				
+				double trioConf = (double) firstTrioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence") * (double) secondTrioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence");
+				
+				
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+					// Contradiction
 					if(transCounter > cisCounter){
-						System.out.println("CONTRADICTION");
-						System.out.println("Cis counter: "+cisCounter);
-						System.out.println("Trans counter: "+transCounter);
-						System.out.println(firstTrioVar.getStart());
-						System.out.println(secondTrioVar.getStart());
-						System.out.println(firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
-						System.out.println(secondTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
-						System.out.println("---");
-						
-						VariantContext newVar = new VariantContextBuilder(secondVar)
-								.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-										.attribute("ReadConfidence", 1.0).make())
-								.attribute("Preceding", firstVar).make();
+						// Trio has better confidence
+						if(trioConf > (transCounter - cisCounter)/(transCounter + cisCounter + 2)){
+							VariantContext newVar = new VariantContextBuilder(secondVar)
+									.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
+											.attribute("ReadConfidence", trioConf).make())
+									.attribute("Preceding", firstVar).make();
 
-						hapBlock.addVariant(newVar, firstVarStrand);
-						continue;
-						
+							hapBlock.addVariant(newVar, firstVarStrand);
+							continue;
+						}
 					}
 				} 
 				// TRANS
 				else {
+					// Contradiction
 					if(cisCounter > transCounter){
-						System.out.println("CONTRADICTION");
-						System.out.println("Cis counter: "+cisCounter);
-						System.out.println("Trans counter: "+transCounter);
-						System.out.println(firstTrioVar.getStart());
-						System.out.println(secondTrioVar.getStart());
-						System.out.println(firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
-						System.out.println(secondTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false));
-						System.out.println("---");
-						
+						// Trio has better confidence
+						if(trioConf > (cisCounter - transCounter)/(transCounter + cisCounter + 2)){
 						VariantContext newVar = new VariantContextBuilder(secondVar)
 								.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-										.attribute("ReadConfidence", 1.0).make())
+										.attribute("ReadConfidence", trioConf).make())
 								.attribute("Preceding", firstVar).make();
 
 						hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 						continue;
-						
+						}
 					}
 				}
 			}
