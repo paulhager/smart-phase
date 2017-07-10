@@ -138,12 +138,12 @@ public class HaplotypeBlock {
 	public Strand getStrandSimVC(VariantContext vc) {
 		
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart()) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND1;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart()) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND2;
 			}
 		}
@@ -157,12 +157,12 @@ public class HaplotypeBlock {
 	 */
 	public VariantContext getSimVC(VariantContext vc){
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart()) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart()) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
 		}
