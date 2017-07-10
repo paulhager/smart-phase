@@ -376,16 +376,6 @@ public class smartPhase {
 								}
 
 								if (outerStrand != null && innerStrand != null) {
-
-									// Ensure genotypes of filt var and saved
-									// vcf var match
-									if (!innerVariant.getGenotype(PATIENT_ID)
-											.sameGenotype(trueInnerVariant.getGenotype(PATIENT_ID), true)
-											|| !outerVariant.getGenotype(PATIENT_ID)
-													.sameGenotype(trueOuterVariant.getGenotype(PATIENT_ID), true)) {
-										throw new Exception("Genotypes of vcf and filtered vars don't match.");
-									}
-
 									totalConfidence = hb.calculateConfidence(trueInnerVariant, trueOuterVariant);
 									notPhased = false;
 									isTrans = (outerStrand != innerStrand) ? true : false;

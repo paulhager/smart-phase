@@ -200,14 +200,12 @@ public class FilteredVariantReader {
 		ArrayList<Allele> alleles = new ArrayList<Allele>();
 		Allele allele = Allele.create(data[2], true);
 		alleles.add(allele);
-		String[] nonRefAlleles = data[3].split(",");
-		for (String alleleString : nonRefAlleles) {
-			Allele a = Allele.create(alleleString, false);
-			alleles.add(a);
-		}
+		Allele altAllele = Allele.create(data[3], false);
+		alleles.add(altAllele);
 
 		long stop;
 		long start = Long.parseLong(data[1]);
+		start++;
 		
 		stop = start + allele.length() - 1;
 		
