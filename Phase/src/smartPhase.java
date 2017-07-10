@@ -338,6 +338,7 @@ public class smartPhase {
 					for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
 						VariantContext outerVariant = filtVarList.get(outerCount);
 						boolean foundOuter = false;
+						System.out.println("outerPrintVar: "+outerVariant.getStart());
 						for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
 							
 							boolean foundInner = false;
@@ -346,6 +347,8 @@ public class smartPhase {
 							boolean tripleHetFlag = false;
 							boolean isTrans = false;
 							VariantContext innerVariant = filtVarList.get(innerCount);
+							
+							System.out.println("innerPrintVar: "+innerVariant.getStart());
 
 							double totalConfidence = -1;
 							for (HaplotypeBlock hb : phasedVars.get(curInterval)) {
