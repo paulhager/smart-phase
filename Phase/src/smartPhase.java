@@ -333,6 +333,7 @@ public class smartPhase {
 					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
 				}
 
+				System.out.println(phasedVars.containsKey(curInterval));
 				if (phasedVars.containsKey(curInterval)) {
 					Set<VariantContext> missingVars = new HashSet<VariantContext>();
 					for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
