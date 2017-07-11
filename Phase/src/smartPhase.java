@@ -546,9 +546,15 @@ public class smartPhase {
 		
 		for(SAMRecord r : trimmedRecords){
 			System.out.println(r.getReadName());
+			System.out.println(r.getReferenceName());
+			System.out.println(r.getMateReferenceName());
 			System.out.println(r.getMappingQuality());
 			System.out.println(r.getCigarString());
 			System.out.println(r.getFirstOfPairFlag());
+			System.out.println(r.getContig());
+			System.out.println(r.getStart());
+			System.out.println(r.getMateAlignmentStart());
+			System.out.println(r.getEnd());
 			System.out.println("---");
 		}
 
