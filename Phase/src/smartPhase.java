@@ -543,20 +543,6 @@ public class smartPhase {
 
 		System.out.println("Reads examined in interval: " + readsExamined);
 		System.out.println("Reads passing QC in interval: " + trimmedRecords.size());
-		
-		for(SAMRecord r : trimmedRecords){
-			System.out.println(r.getReadName());
-			System.out.println(r.getReferenceName());
-			System.out.println(r.getMateReferenceName());
-			System.out.println(r.getMappingQuality());
-			System.out.println(r.getCigarString());
-			System.out.println(r.getFirstOfPairFlag());
-			System.out.println(r.getContig());
-			System.out.println(r.getStart());
-			System.out.println(r.getMateAlignmentStart());
-			System.out.println(r.getEnd());
-			System.out.println("---");
-		}
 
 		if (trimmedRecords.size() > 0) {
 			return phasePIR(variantsToPhase, trimmedRecords, curInterval, trioVars);

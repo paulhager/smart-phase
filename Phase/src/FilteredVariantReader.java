@@ -160,13 +160,13 @@ public class FilteredVariantReader {
 					}
 					
 					String[] splitLine = line.split(spliter);
-					String actContig = splitLine[0];
+					String actContig = splitLine[chromCol];
 					if(!actContig.equals(curContig)) {
 						curContig = actContig;
 						contigPointers.put(curContig, prevLinePointer);
 						prevStart = 0;
 					}
-					int curStart = Integer.parseInt(splitLine[1]);
+					int curStart = Integer.parseInt(splitLine[startCol]);
 					// Ensure within chr. that all vars are start sorted
 					if(prevStart > curStart){
 						throw new Exception("ERROR! Filtered variants list must be grouped by chromosome and sorted by start position within each chromosome. The offending variants are: (prev) "+actContig+"-"+prevStart+" || "+actContig+"-"+curStart);
