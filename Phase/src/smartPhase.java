@@ -546,6 +546,8 @@ public class smartPhase {
 		
 		for(SAMRecord r : trimmedRecords){
 			System.out.println(r.getReadName());
+			System.out.println(r.getMappingQuality());
+			System.out.println("---");
 		}
 
 		if (trimmedRecords.size() > 0) {
