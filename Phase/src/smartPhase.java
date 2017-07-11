@@ -692,22 +692,24 @@ public class smartPhase {
 			// counts are being compared are also trio vars
 			boolean checkContradiction = false;
 			if (TRIO) {
-				while ((firstTrioVar.getStart() < firstVar.getStart()
-						|| !firstTrioVar.getGenotype(PATIENT_ID).isPhased()) && trioVarsIterator.hasNext()) {
-					firstTrioVar = trioVarsIterator.next();
-				}
-				if (firstTrioVar.getStart() == firstVar.getStart() && trioVarsIterator.hasNext()) {
-					secondTrioVar = trioVarsIterator.next();
-					while (trioVarsIterator.hasNext() && !secondTrioVar.getGenotype(PATIENT_ID).isPhased()) {
-						secondTrioVar = trioVarsIterator.next();
+				if(firstTrioVar != null){
+					while ((firstTrioVar.getStart() < firstVar.getStart()
+							|| !firstTrioVar.getGenotype(PATIENT_ID).isPhased()) && trioVarsIterator.hasNext()) {
+						firstTrioVar = trioVarsIterator.next();
 					}
-					if (secondTrioVar.getStart() == secondVar.getStart()
-							&& secondTrioVar.getGenotype(PATIENT_ID).isPhased()
-							&& firstTrioVar.getGenotype(PATIENT_ID).isPhased()) {
-						checkContradiction = true;
-					} else {
-						firstTrioVar = secondTrioVar;
-						secondTrioVar = null;
+					if (firstTrioVar.getStart() == firstVar.getStart() && trioVarsIterator.hasNext()) {
+						secondTrioVar = trioVarsIterator.next();
+						while (trioVarsIterator.hasNext() && !secondTrioVar.getGenotype(PATIENT_ID).isPhased()) {
+							secondTrioVar = trioVarsIterator.next();
+						}
+						if (secondTrioVar.getStart() == secondVar.getStart()
+								&& secondTrioVar.getGenotype(PATIENT_ID).isPhased()
+								&& firstTrioVar.getGenotype(PATIENT_ID).isPhased()) {
+							checkContradiction = true;
+						} else {
+							firstTrioVar = secondTrioVar;
+							secondTrioVar = null;
+						}
 					}
 				}
 			}
