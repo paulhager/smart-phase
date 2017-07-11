@@ -547,6 +547,8 @@ public class smartPhase {
 		for(SAMRecord r : trimmedRecords){
 			System.out.println(r.getReadName());
 			System.out.println(r.getMappingQuality());
+			System.out.println(r.getCigarString());
+			System.out.println(r.getFirstOfPairFlag());
 			System.out.println("---");
 		}
 
