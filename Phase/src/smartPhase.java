@@ -651,6 +651,7 @@ public class smartPhase {
 		trimmedRecords = null;
 
 		if (phaseCounter.size() == 0) {
+			System.out.println("No reads found spanning two vars. Returning empty phasedVars.");
 			return phasedVars;
 		}
 
