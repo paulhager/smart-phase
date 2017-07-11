@@ -310,8 +310,8 @@ public class HaplotypeBlock {
 	public boolean setPhased(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
+				if(trioVar.getAttributeAsBoolean("Innocuous", false)){
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
 				} else {
 					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND1);
 				}
@@ -320,8 +320,8 @@ public class HaplotypeBlock {
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				if(trioVar.getAttributeAsBoolean("TripleHet", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
+				if(trioVar.getAttributeAsBoolean("Innocuous", false)){
+					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
 				} else {
 					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND2);
 				}
@@ -333,7 +333,7 @@ public class HaplotypeBlock {
 
 	
 	/**
-	 * Set TripleHet attribute of a variant's patient_GT context to true.
+	 * Set Innocuous attribute of a variant's patient_GT context to true.
 	 * @param trioVar - Variant whose phase is to be changed
 	 * @return True - If var found
 	 * 		   False - If var not found
@@ -341,13 +341,13 @@ public class HaplotypeBlock {
 	public boolean setTripHet(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("TripleHet", true).make(), posVC, Strand.STRAND1);
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
 				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("TripleHet", true).make(), posVC, Strand.STRAND2);
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
 				return true;
 			}
 		}

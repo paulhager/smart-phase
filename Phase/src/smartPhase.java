@@ -332,17 +332,20 @@ public class smartPhase {
 				if (filtVarList.size() == 1) {
 					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
 				}
+				
 
 				Set<VariantContext> missingVars = new HashSet<VariantContext>();
 				for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
 					VariantContext outerVariant = filtVarList.get(outerCount);
 					boolean foundOuter = false;
+					BitSet outerBitSet = null;
 					for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
 
 						boolean foundInner = false;
+						BitSet innerBitSet = null;
 
 						boolean notPhased = true;
-						boolean tripleHetFlag = false;
+						boolean InnocuousFlag = false;
 						boolean isTrans = false;
 						VariantContext innerVariant = filtVarList.get(innerCount);
 
@@ -362,15 +365,17 @@ public class smartPhase {
 
 								if (outerStrand != null) {
 									foundOuter = true;
-									if (trueOuterVariant.getAttributeAsBoolean("TripleHet", false)) {
-										tripleHetFlag = true;
+									outerBitSet = (BitSet) trueOuterVariant.getAttribute("VarFlags", null);
+									if (trueOuterVariant.getAttributeAsBoolean("Innocuous", false)) {
+										InnocuousFlag = true;
 									}
 								}
 
 								if (innerStrand != null) {
 									foundInner = true;
-									if (trueInnerVariant.getAttributeAsBoolean("TripleHet", false)) {
-										tripleHetFlag = true;
+									innerBitSet = (BitSet) trueInnerVariant.getAttribute("VarFlags", null);
+									if (trueInnerVariant.getAttributeAsBoolean("Innocuous", false)) {
+										InnocuousFlag = true;
 									}
 
 								}
@@ -379,8 +384,16 @@ public class smartPhase {
 									totalConfidence = hb.calculateConfidence(trueInnerVariant, trueOuterVariant);
 									notPhased = false;
 									isTrans = (outerStrand != innerStrand) ? true : false;
+																		
 									break;
 								}
+							}
+						}
+						
+						// Check if inner and outervariant can be labeled as innoculous based on parents GT
+						if(outerBitSet != null && innerBitSet != null){
+							if((outerBitSet.get(0) && innerBitSet.get(2)) || (outerBitSet.get(1) && innerBitSet.get(3)) || (innerBitSet.get(0) && outerBitSet.get(2)) || (innerBitSet.get(1) && outerBitSet.get(3))){
+								InnocuousFlag = true;
 							}
 						}
 
@@ -392,15 +405,19 @@ public class smartPhase {
 							missingVars.add(innerVariant);
 						}
 
+						// Create bitset based on booleans
 						BitSet flagBits = new BitSet(3);
 						flagBits.set(0, isTrans);
 						flagBits.set(1, notPhased);
-						flagBits.set(2, tripleHetFlag);
+						flagBits.set(2, InnocuousFlag);
 
+						// Prase integer flag from bitset
 						int flag = 0;
 						for (int i = flagBits.nextSetBit(0); i >= 0; i = flagBits.nextSetBit(i + 1)) {
 							flag += (1 << i);
 						}
+						
+						
 
 						bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
 								+ outerVariant.getReference().getBaseString() + "-"
@@ -902,16 +919,25 @@ public class smartPhase {
 			}
 
 			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) {
-				outVariants.add(new VariantContextBuilder(var).attribute("TripleHet", true).make());
+				outVariants.add(new VariantContextBuilder(var).attribute("Innocuous", true).make());
 				continue;
 			}
 
-			boolean tripHet = false;
+			boolean innoc = false;
 			if ((motherGT.isHomVar() && fatherGT.isHet()) || (fatherGT.isHomVar() && motherGT.isHet())
 					|| (motherGT.isHomVar() && fatherGT.isHomVar())) {
-				tripHet = true;
+				innoc = true;
 			}
-
+			
+			boolean motherHomVar, fatherHomVar, motherContainsVar, fatherContainsVar;
+			
+			motherHomVar = (motherGT.isHomVar()) ? true : false;
+			fatherHomVar = (fatherGT.isHomVar()) ? true : false;
+			motherContainsVar = (motherGT.isHet() || motherGT.isHomVar()) ? true : false;
+			fatherContainsVar = (fatherGT.isHet() || fatherGT.isHomVar()) ? true : false;
+			
+			
+					
 			motherGT = null;
 			fatherGT = null;
 
@@ -955,7 +981,14 @@ public class smartPhase {
 				motherAllele = patientAllele1;
 				confidence = 0.66;
 			}
+			
+			BitSet varFlagBits = new BitSet(4);
+			varFlagBits.set(0, motherHomVar);
+			varFlagBits.set(1, fatherHomVar);
+			varFlagBits.set(2, motherContainsVar);
+			varFlagBits.set(3, fatherContainsVar);
 
+			VariantContext vc;
 			// Was phased
 			if (motherAllele != null) {
 				ArrayList<Allele> alleles = new ArrayList<Allele>();
@@ -965,13 +998,17 @@ public class smartPhase {
 				Genotype phasedGT = new GenotypeBuilder(patientGT).phased(true).attribute("TrioConfidence", confidence)
 						.alleles(alleles).make();
 
-				VariantContext vc;
-				if (tripHet) {
-					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("TripleHet", true).make();
+				
+				if (innoc) {
+					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("Innocuous", true).attribute("VarFlags", varFlagBits).make();
 				} else {
-					vc = new VariantContextBuilder(var).genotypes(phasedGT).make();
+					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("VarFlags", varFlagBits).make();
 				}
 
+				outVariants.add(vc);
+				vc = null;
+			} else if(innoc){
+				vc = new VariantContextBuilder(var).attribute("Innocuous", true).attribute("VarFlags", varFlagBits).make();
 				outVariants.add(vc);
 				vc = null;
 			}
@@ -997,7 +1034,7 @@ public class smartPhase {
 		int mergeBlockCntr = 2;
 		for (VariantContext trioVar : trioPhasedVars) {
 
-			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("TripleHet", false)) {
+			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
 			}
 
@@ -1075,7 +1112,7 @@ public class smartPhase {
 			// if triple het should be updated
 			if (curBlock.getStrandSimVC(trioVar) != null) {
 				if (!trioVar.getGenotype(PATIENT_ID).isPhased()
-						&& (trioVar.getAttributeAsBoolean("TripleHet", false))) {
+						&& (trioVar.getAttributeAsBoolean("Innocuous", false))) {
 					curBlock.setTripHet(trioVar);
 				}
 			}
