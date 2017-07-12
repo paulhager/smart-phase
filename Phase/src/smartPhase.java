@@ -43,7 +43,7 @@ import picard.pedigree.PedFile;
 public class smartPhase {
 
 	public enum Phase {
-		CIS, TRANS
+		CIS, TRANS, OBSERVED
 	}
 
 	// static SAMRecordIterator samIterator;
@@ -66,6 +66,7 @@ public class smartPhase {
 	static int globalCis = 0;
 	static int globalTrans = 0;
 	static int globalNewBlock = 0;
+	static int globalContradiction = 0;
 
 	public static void main(String[] args) throws Exception {
 		// Parse Options
@@ -118,14 +119,15 @@ public class smartPhase {
 		} else {
 			COHORT = false;
 		}
-		
-		if(cmd.hasOption("r")){
+
+		if (cmd.hasOption("r")) {
 			READS = true;
 		}
 		File[] inputREADFILES = null;
 
-		if(READS){
-			// Parse input read files and their desired min MAPQ from command line
+		if (READS) {
+			// Parse input read files and their desired min MAPQ from command
+			// line
 			// string
 			String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
 			String[] inputMinMAPQStrings = inputMinMAPQ.split(",");
@@ -141,13 +143,12 @@ public class smartPhase {
 				minMAPQ[i] = Double.valueOf(inputMinMAPQStrings[i]);
 				inputREADFILES[i] = new File(inputREADFILEPATHS[i]);
 			}
-			
-			if(!inputREADFILES[0].exists()) {
-			throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
-					+ " does not exist! You must provide at least one valid bam file containing reads or activate trio phasing (-t).");
+
+			if (!inputREADFILES[0].exists()) {
+				throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
+						+ " does not exist! You must provide at least one valid bam file containing reads or activate trio phasing (-t).");
 			}
 		}
-		
 
 		// Ensure required files all exist
 		if (!inputBED.exists()) {
@@ -160,9 +161,10 @@ public class smartPhase {
 			throw new FileNotFoundException("File " + inputVCF_ALL.getAbsolutePath() + " does not exist!");
 		}
 		if (!TRIO && !READS) {
-			throw new FileNotFoundException("You must provide at least one valid bam file containing reads (-r) or activate trio phasing (-t).");
+			throw new FileNotFoundException(
+					"You must provide at least one valid bam file containing reads (-r) or activate trio phasing (-t).");
 		}
-		
+
 		if (OUTPUT.exists()) {
 			System.out.println(
 					"WARNING! Output file " + OUTPUT.getAbsolutePath() + " already exists and will be overwritten.");
@@ -171,7 +173,7 @@ public class smartPhase {
 
 		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
 				.validationStringency(ValidationStringency.SILENT);
-		
+
 		SAMFileHeader allContigsHeader = new SAMFileHeader();
 		allContigsHeader.addSequence(new SAMSequenceRecord("chr1", Integer.MAX_VALUE));
 		allContigsHeader.addSequence(new SAMSequenceRecord("chr2", Integer.MAX_VALUE));
@@ -198,8 +200,7 @@ public class smartPhase {
 		allContigsHeader.addSequence(new SAMSequenceRecord("chrX", Integer.MAX_VALUE));
 		allContigsHeader.addSequence(new SAMSequenceRecord("chrY", Integer.MAX_VALUE));
 		allContigsHeader.addSequence(new SAMSequenceRecord("chrM", Integer.MAX_VALUE));
-		
-		
+
 		IntervalList iList = new IntervalList(allContigsHeader);
 
 		if (!COHORT) {
@@ -259,14 +260,14 @@ public class smartPhase {
 		}
 
 		ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
-		if(READS){
+		if (READS) {
 			// Create factory to read bam files and add iterators to list
 			for (File inputReadsFile : inputREADFILES) {
 				SamReader samReader = samReaderFactory.open(inputReadsFile);
 				samReaderSet.add(samReader);
 			}
 		}
-		
+
 		samReaderFactory = null;
 
 		// Iterate over genomic regions
@@ -506,6 +507,7 @@ public class smartPhase {
 		System.out.println("Cis count: " + globalCis);
 		System.out.println("Trans count: " + globalTrans);
 		System.out.println("Newblock count: " + globalNewBlock);
+		System.out.println("Contradiction count: "+globalContradiction);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
@@ -514,6 +516,7 @@ public class smartPhase {
 			pwOUTPUT.println("Cis count: " + globalCis);
 			pwOUTPUT.println("Trans count: " + globalTrans);
 			pwOUTPUT.println("Newblock count: " + globalNewBlock);
+			pwOUTPUT.println("Contradiction count: "+globalContradiction);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -653,60 +656,59 @@ public class smartPhase {
 				boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + 1,
 						false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
 
-				for (Allele allele : patGT.getAlleles()) {
-					// Calculate correct position in read to be compared to
-					// alternative alleles in variant
-					int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
-					int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
+				Allele allele = patGT.getAllele(1);
+				if(!allele.isNonReference()){
+					throw new Error("Only normalized vcf files are allowed.");
+				}
+				// Calculate correct position in read to be compared to
+				// alternative alleles in variant
+				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
+				int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
 
-					// Disregard variants who start in the middle of deletions
-					// as
-					// these aren't called correctly.
-					if (subStrStart == -1 || subStrEnd == 0) {
+				// Disregard variants who start in the middle of deletions
+				// as
+				// these aren't called correctly.
+				if (subStrStart == -1 || subStrEnd == 0) {
+					continue;
+				}
+
+				if (insert && insertVar) {
+					subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
+					if (subStrEnd == -1) {
 						continue;
 					}
-
-					if (insert && insertVar) {
-						subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
-						if (subStrEnd == -1) {
-							continue;
-						}
-					}
-
-					// Check alternative allele co-occurence on read
-					if (allele.isNonReference() && (!delVar || del) && (!insertVar || insert)) {
-
-						// Variant is found in read
-						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-
-							seenInRead.add(v);
-							// Increase CIS counter for all also found with this
-							// read
-							phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
-
-							// Increase TRANS counter for all examined and NOT
-							// found on this read
-							phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
-						}
-
-					} else if (allele.isReference() && (!delVar || !del) && (!insertVar || !insert)) {
-
-						// Variant is not found in read but ref is
-						if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-
-							NOT_SeenInRead.add(v);
-							// Increase CIS counter with all others not found in
-							// read
-							phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.CIS);
-
-							// Increase TRANS counter with all found in read
-							phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
-						}
-					}
-
 				}
+
+				// Check alternative allele co-occurence on read
+				if ((!delVar || del) && (!insertVar || insert)) {
+					
+					// Increase observed count
+					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
+					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
+
+					// Variant is found in read
+					if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+
+						seenInRead.add(v);
+						// Increase CIS counter for all also found with this
+						// read
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
+
+						// Increase TRANS counter for all examined and NOT
+						// found on this read
+						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
+					} else {
+						
+						NOT_SeenInRead.add(v);
+						
+						// Increase TRANS counter for all examined and
+						// found on this read
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
+					}
+
+				} 
 			}
-		}
+		}		
 		trimPosVarsInRead = null;
 		trimmedRecords = null;
 
@@ -733,6 +735,7 @@ public class smartPhase {
 
 		double cisCounter;
 		double transCounter;
+		double observedCounter;
 
 		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
 
@@ -803,6 +806,9 @@ public class smartPhase {
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0);
+			observedCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+			
+			double confidence = Math.abs(((transCounter/2) - cisCounter) / (((observedCounter/2) + 1)));
 
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
@@ -818,7 +824,8 @@ public class smartPhase {
 					// Contradiction
 					if (transCounter > cisCounter) {
 						// Trio has better confidence
-						if (trioConf > (transCounter - cisCounter) / (transCounter + cisCounter + 2)) {
+						if (trioConf > confidence) {
+							globalContradiction++;
 							VariantContext newVar = new VariantContextBuilder(secondVar)
 									.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 											.attribute("ReadConfidence", trioConf).make())
@@ -834,7 +841,8 @@ public class smartPhase {
 					// Contradiction
 					if (cisCounter > transCounter) {
 						// Trio has better confidence
-						if (trioConf > (cisCounter - transCounter) / (transCounter + cisCounter + 2)) {
+						if (trioConf > confidence) {
+							globalContradiction++;
 							VariantContext newVar = new VariantContextBuilder(secondVar)
 									.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 											.attribute("ReadConfidence", trioConf).make())
@@ -846,38 +854,27 @@ public class smartPhase {
 					}
 				}
 			}
-
-			double total = cisCounter + transCounter;
+			
+			VariantContext newVar = new VariantContextBuilder(secondVar)
+					.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
+							.attribute("ReadConfidence", confidence).make())
+					.attribute("Preceding", firstVar).make();
 			key = null;
 			if (cisCounter > transCounter) {
-				globalCis++;
-				double difference = cisCounter - transCounter;
-				double confidence = difference / (total + 2);
-				VariantContext newVar = new VariantContextBuilder(secondVar)
-						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-								.attribute("ReadConfidence", confidence).make())
-						.attribute("Preceding", firstVar).make();
-
+				globalCis++;			
 				hapBlock.addVariant(newVar, firstVarStrand);
 			} else if (transCounter > cisCounter) {
 				globalTrans++;
-				double difference = transCounter - cisCounter;
-				double confidence = difference / (total + 2);
-				VariantContext newVar = new VariantContextBuilder(secondVar)
-						.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
-								.attribute("ReadConfidence", confidence).make())
-						.attribute("Preceding", firstVar).make();
-
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
 				intervalBlocks.add(hapBlock);
 				hapBlock = new HaplotypeBlock(PATIENT_ID);
-				VariantContext newVar = new VariantContextBuilder(secondVar).genotypes(
+				VariantContext newVarNewBlock = new VariantContextBuilder(secondVar).genotypes(
 						new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 						.attribute("Preceding", null).make();
-				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
+				hapBlock.addVariant(newVarNewBlock, HaplotypeBlock.Strand.STRAND1);
 			}
 		}
 		intervalBlocks.add(hapBlock);
@@ -1080,7 +1077,7 @@ public class smartPhase {
 				} else {
 					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("VarFlags", varFlagBits).make();
 				}
-
+				
 				outVariants.add(vc);
 				vc = null;
 			} else if (innoc) {
