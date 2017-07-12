@@ -390,7 +390,7 @@ public class smartPhase {
 							}
 						}
 						
-						// Check if inner and outervariant can be labeled as innoculous based on parents GT
+						// Check if inner and outer variant can be labeled as innocuous based on parents GT
 						if(outerBitSet != null && innerBitSet != null){
 							if((outerBitSet.get(0) && innerBitSet.get(2)) || (outerBitSet.get(1) && innerBitSet.get(3)) || (innerBitSet.get(0) && outerBitSet.get(2)) || (innerBitSet.get(1) && outerBitSet.get(3))){
 								InnocuousFlag = true;

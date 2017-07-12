@@ -163,6 +163,9 @@ public class FilteredVariantReader {
 					String actContig = splitLine[chromCol];
 					if(!actContig.equals(curContig)) {
 						curContig = actContig;
+						if(contigPointers.containsKey(curContig)){
+							throw new Exception("ERROR! Filtered variants list must be grouped by chromosome and sorted by start position within each chromosome.");
+						}
 						contigPointers.put(curContig, prevLinePointer);
 						prevStart = 0;
 					}
