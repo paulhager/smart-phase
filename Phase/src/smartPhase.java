@@ -415,7 +415,7 @@ public class smartPhase {
 						flagBits.set(1, notPhased);
 						flagBits.set(2, InnocuousFlag);
 
-						// Prase integer flag from bitset
+						// Parse integer flag from bitset
 						int flag = 0;
 						for (int i = flagBits.nextSetBit(0); i >= 0; i = flagBits.nextSetBit(i + 1)) {
 							flag += (1 << i);
@@ -551,7 +551,23 @@ public class smartPhase {
 		if (trimmedRecords.size() > 0) {
 			return phasePIR(variantsToPhase, trimmedRecords, curInterval, trioVars);
 		}
-		return new HashMap<Interval, ArrayList<HaplotypeBlock>>();
+		
+		// No reads found, so create new HB for each read so at least trio phasing can be done
+		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
+		for(VariantContext vc : variantsToPhase){
+			
+			globalNewBlock++;
+			// Cannot phase. Open new haplotypeBlock
+			HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
+			VariantContext newVar = new VariantContextBuilder(vc).genotypes(
+					new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
+					.attribute("Preceding", null).make();
+			hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
+			intervalBlocks.add(hapBlock);
+		}
+		HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
+		phasedVars.put(curInterval, intervalBlocks);
+		return phasedVars;
 	}
 
 	private static HashMap<Interval, ArrayList<HaplotypeBlock>> phasePIR(ArrayList<VariantContext> variantsToPhase,
@@ -570,7 +586,7 @@ public class smartPhase {
 
 			trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
 
-			// Read covers less than 2 variants and is thus not of interest
+			// Read covers less than 2 variants and is thus not of interest.
 			if (trimPosVarsInRead.size() < 2) {
 				continue;
 			}
@@ -654,8 +670,22 @@ public class smartPhase {
 		trimPosVarsInRead = null;
 		trimmedRecords = null;
 
+		// No reads found spanning two vars. Creating new HB for each variant so thex can be trio phased
 		if (phaseCounter.size() == 0) {
-			System.out.println("No reads found spanning two vars. Returning empty phasedVars.");
+			// No reads found, so create new HB for each read so at least trio phasing can be done
+			ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
+			for(VariantContext vc : variantsToPhase){
+				
+				globalNewBlock++;
+				// Cannot phase. Open new haplotypeBlock
+				HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
+				VariantContext newVar = new VariantContextBuilder(vc).genotypes(
+						new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
+						.attribute("Preceding", null).make();
+				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
+				intervalBlocks.add(hapBlock);
+			}
+			phasedVars.put(curInterval, intervalBlocks);
 			return phasedVars;
 		}
 
