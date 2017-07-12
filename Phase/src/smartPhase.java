@@ -205,6 +205,7 @@ public class smartPhase {
 
 		// Read both VCF files
 		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID, iList);
+		@SuppressWarnings("resource")
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
 
 		if (COHORT) {
@@ -219,9 +220,6 @@ public class smartPhase {
 			samReaderSet.add(samReader);
 		}
 		samReaderFactory = null;
-
-		// Storage of filtered variant lists
-		HashMap<Interval, ArrayList<VariantContext>> regionFiltVariantMap = new HashMap<Interval, ArrayList<VariantContext>>();
 
 		// Iterate over genomic regions
 		Iterator<Interval> intervalListIterator = iList.iterator();
@@ -264,18 +262,36 @@ public class smartPhase {
 
 			// Grab filtered variants within current region
 			ArrayList<VariantContext> regionFiltVariantList = filteredVCFReader.scan(curInterval, contigSwitch);
-			regionFiltVariantMap.put(curInterval, regionFiltVariantList);
-
+			
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
 			if (regionFiltVariantList.size() < 2) {
-				// Skip all phasing steps and move onto next interval
+				// Skip all phasing steps and move onto next interval after printing into file
+				for(VariantContext singleVC : regionFiltVariantList){
+					try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
+
+						bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
+								+ intervalName + "\n");
+
+						bwOUTPUT.write(singleVC.getContig() + "-" + singleVC.getStart() + "-"
+								+ singleVC.getReference().getBaseString() + "-"
+								+ singleVC.getAlternateAllele(0).getBaseString() + "\n");
+						
+					} catch (Exception e) {
+						e.printStackTrace();
+						throw new IOException("Exception while writting output file: " + e.getMessage());
+					}
+				}
 				continue;
 			}
-
+			
 			// Grab all variants within current region
 			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
-					intervalStart, intervalEnd);
+								intervalStart, intervalEnd);
+			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
+			variantsToPhase.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
+			regionAllVariantIterator.close();
+			regionAllVariantIterator = null;
 
 			System.out.println("------------------");
 			System.out.println("INTERVAL CONTIG: " + intervalContig);
@@ -283,17 +299,12 @@ public class smartPhase {
 			System.out.println("INTERVAL END: " + intervalEnd);
 
 			System.out.println("Filtered Variants found in interval: " + regionFiltVariantList.size());
-
-			// MutablePhasedVariantsIterator that stores the phased variants to
-			// be analyzed at end for compound heterozygosity
-			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
-			variantsToPhase.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
-			regionAllVariantIterator.close();
-			regionAllVariantIterator = null;
-
+			
 			if (variantsToPhase.isEmpty()) {
+				System.err.println("No variants found in VCF in this interval, but more than 2 filtered variants found.");
 				continue;
 			}
+
 			ArrayList<VariantContext> trioPhasedVariants = null;
 
 			if (TRIO) {
@@ -324,22 +335,15 @@ public class smartPhase {
 			// -1 = No Information
 			try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 
-				ArrayList<VariantContext> filtVarList = regionFiltVariantMap.get(curInterval);
-
 				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
 						+ intervalName + "\n");
 
-				if (filtVarList.size() == 1) {
-					bwOUTPUT.write(filtVarList.get(0).getStart() + "|" + filtVarList.get(0).getEnd() + "\n");
-				}
-				
-
 				Set<VariantContext> missingVars = new HashSet<VariantContext>();
-				for (int outerCount = 0; outerCount < filtVarList.size() - 1; outerCount++) {
-					VariantContext outerVariant = filtVarList.get(outerCount);
+				for (int outerCount = 0; outerCount < regionFiltVariantList.size() - 1; outerCount++) {
+					VariantContext outerVariant = regionFiltVariantList.get(outerCount);
 					boolean foundOuter = false;
 					BitSet outerBitSet = null;
-					for (int innerCount = outerCount + 1; innerCount < filtVarList.size(); innerCount++) {
+					for (int innerCount = outerCount + 1; innerCount < regionFiltVariantList.size(); innerCount++) {
 
 						boolean foundInner = false;
 						BitSet innerBitSet = null;
@@ -347,7 +351,7 @@ public class smartPhase {
 						boolean notPhased = true;
 						boolean InnocuousFlag = false;
 						boolean isTrans = false;
-						VariantContext innerVariant = filtVarList.get(innerCount);
+						VariantContext innerVariant = regionFiltVariantList.get(innerCount);
 
 						double totalConfidence = -1;
 						if (phasedVars.containsKey(curInterval)) {
