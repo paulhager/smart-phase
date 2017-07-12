@@ -22,8 +22,10 @@ import java.util.BitSet;
 //import org.broadinstitute.gatk.utils.genotyper.AlleleList;
 import org.apache.commons.cli.*;
 
+import htsjdk.samtools.SAMFileHeader;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SAMSequenceRecord;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
@@ -55,6 +57,7 @@ public class smartPhase {
 	static String PATIENT_ID;
 
 	static boolean TRIO;
+	static boolean READS;
 
 	// Statistics
 	static int denovoCounter = 0;
@@ -72,11 +75,11 @@ public class smartPhase {
 		options.addRequiredOption("f", "filtered-variants", true,
 				"Path to file containing patient variants filtered for significance");
 		options.addRequiredOption("a", "all-variants", true, "Path to file containing all patient variants (.vcf)");
-		options.addRequiredOption("r", "reads1", true,
-				"Comma seperated list of paths to files containing aligned patient reads.");
 		options.addRequiredOption("p", "patient", true, "ID of patient through vcf and ped files.");
 		options.addRequiredOption("o", "output", true, "Path to desired output file.");
-		options.addRequiredOption("m", "mapq", true,
+		options.addOption("r", "reads1", true,
+				"Comma seperated list of paths to files containing aligned patient reads.");
+		options.addOption("m", "mapq", true,
 				"Comma seperated list of mapping quality cutoff values to use when examining reads. Each value corresponds to the min MAPQ for an input BAM file.");
 		options.addOption("t", false,
 				"Specify if trio information is available AND contained in original-variants file provided.");
@@ -115,23 +118,36 @@ public class smartPhase {
 		} else {
 			COHORT = false;
 		}
-
-		// Parse input read files and their desired min MAPQ from command line
-		// string
-		String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
-		String[] inputMinMAPQStrings = inputMinMAPQ.split(",");
-
-		if (inputMinMAPQStrings.length != inputREADFILEPATHS.length) {
-			throw new Exception(
-					"Incorrect number of min MAPQ arguments! The number of comma separated MAPQ values must be equal to the number of provided alignment files.");
+		
+		if(cmd.hasOption("r")){
+			READS = true;
 		}
+		File[] inputREADFILES = null;
 
-		File[] inputREADFILES = new File[inputREADFILEPATHS.length];
-		minMAPQ = new double[inputMinMAPQStrings.length];
-		for (int i = 0; i < inputREADFILEPATHS.length; i++) {
-			minMAPQ[i] = Double.valueOf(inputMinMAPQStrings[i]);
-			inputREADFILES[i] = new File(inputREADFILEPATHS[i]);
+		if(READS){
+			// Parse input read files and their desired min MAPQ from command line
+			// string
+			String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
+			String[] inputMinMAPQStrings = inputMinMAPQ.split(",");
+
+			if (inputMinMAPQStrings.length != inputREADFILEPATHS.length) {
+				throw new Exception(
+						"Incorrect number of min MAPQ arguments! The number of comma separated MAPQ values must be equal to the number of provided alignment files.");
+			}
+
+			inputREADFILES = new File[inputREADFILEPATHS.length];
+			minMAPQ = new double[inputMinMAPQStrings.length];
+			for (int i = 0; i < inputREADFILEPATHS.length; i++) {
+				minMAPQ[i] = Double.valueOf(inputMinMAPQStrings[i]);
+				inputREADFILES[i] = new File(inputREADFILEPATHS[i]);
+			}
+			
+			if(!inputREADFILES[0].exists()) {
+			throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
+					+ " does not exist! You must provide at least one valid bam file containing reads or activate trio phasing (-t).");
+			}
 		}
+		
 
 		// Ensure required files all exist
 		if (!inputBED.exists()) {
@@ -143,10 +159,10 @@ public class smartPhase {
 		if (!inputVCF_ALL.exists()) {
 			throw new FileNotFoundException("File " + inputVCF_ALL.getAbsolutePath() + " does not exist!");
 		}
-		if (!inputREADFILES[0].exists()) {
-			throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
-					+ " does not exist! You must provide at least one valid bam file containing reads.");
+		if (!TRIO && !READS) {
+			throw new FileNotFoundException("You must provide at least one valid bam file containing reads (-r) or activate trio phasing (-t).");
 		}
+		
 		if (OUTPUT.exists()) {
 			System.out.println(
 					"WARNING! Output file " + OUTPUT.getAbsolutePath() + " already exists and will be overwritten.");
@@ -155,7 +171,36 @@ public class smartPhase {
 
 		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
 				.validationStringency(ValidationStringency.SILENT);
-		IntervalList iList = new IntervalList(samReaderFactory.open(inputREADFILES[0]).getFileHeader());
+		
+		SAMFileHeader allContigsHeader = new SAMFileHeader();
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr1", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr2", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr3", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr4", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr5", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr6", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr7", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr8", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr9", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr10", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr11", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr12", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr13", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr14", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr15", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr16", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr17", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr18", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr19", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr20", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr21", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chr22", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chrX", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chrY", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("chrM", Integer.MAX_VALUE));
+		
+		
+		IntervalList iList = new IntervalList(allContigsHeader);
 
 		if (!COHORT) {
 			// Grab all intervals from bed file and store in interval list
@@ -214,11 +259,14 @@ public class smartPhase {
 		}
 
 		ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
-		// Create factory to read bam files and add iterators to list
-		for (File inputReadsFile : inputREADFILES) {
-			SamReader samReader = samReaderFactory.open(inputReadsFile);
-			samReaderSet.add(samReader);
+		if(READS){
+			// Create factory to read bam files and add iterators to list
+			for (File inputReadsFile : inputREADFILES) {
+				SamReader samReader = samReaderFactory.open(inputReadsFile);
+				samReaderSet.add(samReader);
+			}
 		}
+		
 		samReaderFactory = null;
 
 		// Iterate over genomic regions
@@ -535,7 +583,7 @@ public class smartPhase {
 		// Create temp records list to be trimmed at end.
 		ArrayList<SAMRecord> trimmedRecords = new ArrayList<SAMRecord>(curRecords);
 
-		if (curRec.getStart() > intervalEnd && trimmedRecords.size() > 0) {
+		if (curRec != null && curRec.getStart() > intervalEnd && trimmedRecords.size() > 0) {
 			trimmedRecords.remove(trimmedRecords.size() - 1);
 		}
 
