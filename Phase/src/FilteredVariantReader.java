@@ -36,8 +36,6 @@ public class FilteredVariantReader {
 	
 	private ArrayList<VariantContext> allVariants = new ArrayList<VariantContext>();
 
-	Set<String[]> startSet = new HashSet<String[]>();
-	Set<Integer> startSetC = new HashSet<Integer>();
 	Set<String> allVarsContigs = new HashSet<String>();
 	ArrayList<VariantContext> possibleVariants = new ArrayList<VariantContext>();
 	
@@ -218,9 +216,8 @@ public class FilteredVariantReader {
 		
 		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).make();
 		
-		if(!startSetC.contains(varVC.getStart())){
+		if(!allVariants.contains(varVC)){
 			allVariants.add(varVC);
-			startSetC.add(varVC.getStart());
 		}
 		
 		return;
@@ -256,7 +253,7 @@ public class FilteredVariantReader {
 		
 		// Add variants until variant exceeds intervalEnd or reader is empty
 		while ((possibleVariants.size() == 0
-				|| possibleVariants.get(possibleVariants.size() - 1).getStart() < intervalEnd)) {
+				|| (possibleVariants.get(possibleVariants.size() - 1).getStart() < intervalEnd && possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())))) {
 			try {
 				String line = raFile.readLine();
 				
@@ -286,17 +283,17 @@ public class FilteredVariantReader {
 						start++;
 					}
 					stop = start + allele.length() - 1;
+					
+					VariantContext newVarC = vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
 
 					// Create new variantContext and add
-					if (!startSet.contains(entries)) {
-						possibleVariants.add(
-								vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make());
+					if (!possibleVariants.contains(newVarC) && curInterval.getContig().equals(entries[chromCol])) {
+						possibleVariants.add(newVarC);
 					}
 					
-					startSet.add(entries);
 					
 					// Check if contig changed
-					if (!possibleVariants.get(possibleVariants.size() - 1).getContig().equals(curInterval.getContig())) {
+					if (!newVarC.getContig().equals(curInterval.getContig())) {
 						break;
 					}
 				} else {
@@ -313,7 +310,7 @@ public class FilteredVariantReader {
 		}
 
 		// Remove all variants less than current interval start
-		possibleVariants.removeIf(v -> v.getStart() < intervalStart && v.getContig().equals(curInterval.getContig()));
+		possibleVariants.removeIf(v -> v.getStart() < intervalStart || !v.getContig().equals(curInterval.getContig()));
 
 		// Create to-be-returned variants arraylist
 		// TODO: PERFORMANCE BOOST IF YOU CHECK FROM BEHIND?
