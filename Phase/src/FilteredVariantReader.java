@@ -131,13 +131,13 @@ public class FilteredVariantReader {
 				// Parse col locations
 				String[] headers = line.split(spliter);
 				for(int x = 0; x < headers.length; x++){
-					if(headers[x].equals("chrom")){
+					if(headers[x].trim().equals("chrom")){
 						chromCol = x;
-					} else if(headers[x].equals("start")){
+					} else if(headers[x].trim().equals("start")){
 						startCol = x;
-					} else if(headers[x].equals("ref")){
+					} else if(headers[x].trim().equals("ref")){
 						refCol = x;
-					} else if(headers[x].equals("alt")){
+					} else if(headers[x].trim().equals("alt")){
 						altCol = x;
 					}
 				}
