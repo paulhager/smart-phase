@@ -236,10 +236,6 @@ public class smartPhase {
 				intervalName = curInterval.getName();
 			}
 
-			// KEY: Interval VALUE: List of Lists: each arraylist
-			// represents a haplotype block
-			HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
-
 			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
 				continue;
 			}
@@ -262,12 +258,13 @@ public class smartPhase {
 
 			// Grab filtered variants within current region
 			ArrayList<VariantContext> regionFiltVariantList = filteredVCFReader.scan(curInterval, contigSwitch);
-			
+
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
 			if (regionFiltVariantList.size() < 2) {
-				// Skip all phasing steps and move onto next interval after printing into file
-				for(VariantContext singleVC : regionFiltVariantList){
+				// Skip all phasing steps and move onto next interval after
+				// printing into file
+				for (VariantContext singleVC : regionFiltVariantList) {
 					try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 
 						bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
@@ -276,7 +273,7 @@ public class smartPhase {
 						bwOUTPUT.write(singleVC.getContig() + "-" + singleVC.getStart() + "-"
 								+ singleVC.getReference().getBaseString() + "-"
 								+ singleVC.getAlternateAllele(0).getBaseString() + "\n");
-						
+
 					} catch (Exception e) {
 						e.printStackTrace();
 						throw new IOException("Exception while writting output file: " + e.getMessage());
@@ -284,10 +281,10 @@ public class smartPhase {
 				}
 				continue;
 			}
-			
+
 			// Grab all variants within current region
 			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
-								intervalStart, intervalEnd);
+					intervalStart, intervalEnd);
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
 			variantsToPhase.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
 			regionAllVariantIterator.close();
@@ -299,9 +296,10 @@ public class smartPhase {
 			System.out.println("INTERVAL END: " + intervalEnd);
 
 			System.out.println("Filtered Variants found in interval: " + regionFiltVariantList.size());
-			
+
 			if (variantsToPhase.isEmpty()) {
-				System.err.println("No variants found in VCF in this interval, but more than 2 filtered variants found.");
+				System.err
+						.println("No variants found in VCF in this interval, but more than 2 filtered variants found.");
 				continue;
 			}
 
@@ -310,17 +308,14 @@ public class smartPhase {
 			if (TRIO) {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
 			}
-			phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
+			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
 			variantsToPhase = null;
 
 			// If trio information is available, use parents GT to resolve phase
 			// where possible and then merge blocks
 			if (TRIO) {
-				// Only merge if there are blocks to be merged
-				if (phasedVars.containsKey(curInterval)) {
-					updateTripHet(trioPhasedVariants, phasedVars.get(curInterval));
-					phasedVars.put(curInterval, mergeBlocks(trioPhasedVariants, phasedVars.get(curInterval)));
-				}
+				updateTripHet(trioPhasedVariants, phasedVars);
+				phasedVars = mergeBlocks(trioPhasedVariants, phasedVars);
 			}
 
 			// Write final output file
@@ -354,49 +349,50 @@ public class smartPhase {
 						VariantContext innerVariant = regionFiltVariantList.get(innerCount);
 
 						double totalConfidence = -1;
-						if (phasedVars.containsKey(curInterval)) {
-							for (HaplotypeBlock hb : phasedVars.get(curInterval)) {
-								if (hb == null) {
-									throw new Exception("HaplotypeBlock is null!");
-								}
+						for (HaplotypeBlock hb : phasedVars) {
+							if (hb == null) {
+								throw new Exception("HaplotypeBlock is null!");
+							}
 
-								// TODO: Sift through arraylists twice... very
-								// inneficient
-								VariantContext trueOuterVariant = hb.getSimVC(outerVariant);
-								VariantContext trueInnerVariant = hb.getSimVC(innerVariant);
-								HaplotypeBlock.Strand outerStrand = hb.getStrandSimVC(outerVariant);
-								HaplotypeBlock.Strand innerStrand = hb.getStrandSimVC(innerVariant);
+							// TODO: Sift through arraylists twice... very
+							// inneficient
+							VariantContext trueOuterVariant = hb.getSimVC(outerVariant);
+							VariantContext trueInnerVariant = hb.getSimVC(innerVariant);
+							HaplotypeBlock.Strand outerStrand = hb.getStrandSimVC(outerVariant);
+							HaplotypeBlock.Strand innerStrand = hb.getStrandSimVC(innerVariant);
 
-								if (outerStrand != null) {
-									foundOuter = true;
-									outerBitSet = (BitSet) trueOuterVariant.getAttribute("VarFlags", null);
-									if (trueOuterVariant.getAttributeAsBoolean("Innocuous", false)) {
-										InnocuousFlag = true;
-									}
-								}
-
-								if (innerStrand != null) {
-									foundInner = true;
-									innerBitSet = (BitSet) trueInnerVariant.getAttribute("VarFlags", null);
-									if (trueInnerVariant.getAttributeAsBoolean("Innocuous", false)) {
-										InnocuousFlag = true;
-									}
-
-								}
-
-								if (outerStrand != null && innerStrand != null) {
-									totalConfidence = hb.calculateConfidence(trueInnerVariant, trueOuterVariant);
-									notPhased = false;
-									isTrans = (outerStrand != innerStrand) ? true : false;
-																		
-									break;
+							if (outerStrand != null) {
+								foundOuter = true;
+								outerBitSet = (BitSet) trueOuterVariant.getAttribute("VarFlags", null);
+								if (trueOuterVariant.getAttributeAsBoolean("Innocuous", false)) {
+									InnocuousFlag = true;
 								}
 							}
+
+							if (innerStrand != null) {
+								foundInner = true;
+								innerBitSet = (BitSet) trueInnerVariant.getAttribute("VarFlags", null);
+								if (trueInnerVariant.getAttributeAsBoolean("Innocuous", false)) {
+									InnocuousFlag = true;
+								}
+
+							}
+
+							if (outerStrand != null && innerStrand != null) {
+								totalConfidence = hb.calculateConfidence(trueInnerVariant, trueOuterVariant);
+								notPhased = false;
+								isTrans = (outerStrand != innerStrand) ? true : false;
+
+								break;
+							}
 						}
-						
-						// Check if inner and outer variant can be labeled as innocuous based on parents GT
-						if(outerBitSet != null && innerBitSet != null){
-							if((outerBitSet.get(0) && innerBitSet.get(2)) || (outerBitSet.get(1) && innerBitSet.get(3)) || (innerBitSet.get(0) && outerBitSet.get(2)) || (innerBitSet.get(1) && outerBitSet.get(3))){
+
+						// Check if inner and outer variant can be labeled as
+						// innocuous based on parents GT
+						if (outerBitSet != null && innerBitSet != null) {
+							if ((outerBitSet.get(0) && innerBitSet.get(2)) || (outerBitSet.get(1) && innerBitSet.get(3))
+									|| (innerBitSet.get(0) && outerBitSet.get(2))
+									|| (innerBitSet.get(1) && outerBitSet.get(3))) {
 								InnocuousFlag = true;
 							}
 						}
@@ -420,8 +416,6 @@ public class smartPhase {
 						for (int i = flagBits.nextSetBit(0); i >= 0; i = flagBits.nextSetBit(i + 1)) {
 							flag += (1 << i);
 						}
-						
-						
 
 						bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
 								+ outerVariant.getReference().getBaseString() + "-"
@@ -482,8 +476,8 @@ public class smartPhase {
 		return PATIENT_ID;
 	}
 
-	private static HashMap<Interval, ArrayList<HaplotypeBlock>> readPhase(ArrayList<VariantContext> variantsToPhase,
-			Interval curInterval, ArrayList<VariantContext> trioVars) throws Exception {
+	private static ArrayList<HaplotypeBlock> readPhase(ArrayList<VariantContext> variantsToPhase, Interval curInterval,
+			ArrayList<VariantContext> trioVars) throws Exception {
 
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
@@ -551,32 +545,30 @@ public class smartPhase {
 		if (trimmedRecords.size() > 0) {
 			return phasePIR(variantsToPhase, trimmedRecords, curInterval, trioVars);
 		}
-		
-		// No reads found, so create new HB for each read so at least trio phasing can be done
+
+		// No reads found, so create new HB for each read so at least trio
+		// phasing can be done
 		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
-		for(VariantContext vc : variantsToPhase){
-			
+		for (VariantContext vc : variantsToPhase) {
+
 			globalNewBlock++;
 			// Cannot phase. Open new haplotypeBlock
 			HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
-			VariantContext newVar = new VariantContextBuilder(vc).genotypes(
-					new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
+			VariantContext newVar = new VariantContextBuilder(vc)
+					.genotypes(new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 					.attribute("Preceding", null).make();
 			hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
 			intervalBlocks.add(hapBlock);
 		}
-		HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
-		phasedVars.put(curInterval, intervalBlocks);
-		return phasedVars;
+		return intervalBlocks;
 	}
 
-	private static HashMap<Interval, ArrayList<HaplotypeBlock>> phasePIR(ArrayList<VariantContext> variantsToPhase,
+	private static ArrayList<HaplotypeBlock> phasePIR(ArrayList<VariantContext> variantsToPhase,
 			ArrayList<SAMRecord> trimmedRecords, Interval curInterval, ArrayList<VariantContext> trioVars)
 			throws Exception {
 
 		ArrayList<VariantContext> trimPosVarsInRead;
 		Set<VariantContext> key;
-		HashMap<Interval, ArrayList<HaplotypeBlock>> phasedVars = new HashMap<Interval, ArrayList<HaplotypeBlock>>();
 
 		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
 
@@ -670,23 +662,25 @@ public class smartPhase {
 		trimPosVarsInRead = null;
 		trimmedRecords = null;
 
-		// No reads found spanning two vars. Creating new HB for each variant so thex can be trio phased
+		// No reads found spanning two vars. Creating new HB for each variant so
+		// thex can be trio phased
 		if (phaseCounter.size() == 0) {
-			// No reads found, so create new HB for each read so at least trio phasing can be done
+			// No reads found, so create new HB for each read so at least trio
+			// phasing can be done
 			ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
-			for(VariantContext vc : variantsToPhase){
-				
+			for (VariantContext vc : variantsToPhase) {
+
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
 				HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
-				VariantContext newVar = new VariantContextBuilder(vc).genotypes(
-						new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
+				VariantContext newVar = new VariantContextBuilder(vc)
+						.genotypes(
+								new GenotypeBuilder(vc.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 						.attribute("Preceding", null).make();
 				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
 				intervalBlocks.add(hapBlock);
 			}
-			phasedVars.put(curInterval, intervalBlocks);
-			return phasedVars;
+			return intervalBlocks;
 		}
 
 		double cisCounter;
@@ -727,7 +721,7 @@ public class smartPhase {
 			// counts are being compared are also trio vars
 			boolean checkContradiction = false;
 			if (TRIO) {
-				if(firstTrioVar != null){
+				if (firstTrioVar != null) {
 					while ((firstTrioVar.getStart() < firstVar.getStart()
 							|| !firstTrioVar.getGenotype(PATIENT_ID).isPhased()) && trioVarsIterator.hasNext()) {
 						firstTrioVar = trioVarsIterator.next();
@@ -842,8 +836,7 @@ public class smartPhase {
 
 		// TODO: Remove inefficiencies created by calculating/storing values
 		// twice for overlapping intervals.
-		phasedVars.put(curInterval, intervalBlocks);
-		return phasedVars;
+		return intervalBlocks;
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> updatePhaseCounter(
@@ -965,16 +958,14 @@ public class smartPhase {
 					|| (motherGT.isHomVar() && fatherGT.isHomVar())) {
 				innoc = true;
 			}
-			
+
 			boolean motherHomVar, fatherHomVar, motherContainsVar, fatherContainsVar;
-			
+
 			motherHomVar = (motherGT.isHomVar()) ? true : false;
 			fatherHomVar = (fatherGT.isHomVar()) ? true : false;
 			motherContainsVar = (motherGT.isHet() || motherGT.isHomVar()) ? true : false;
 			fatherContainsVar = (fatherGT.isHet() || fatherGT.isHomVar()) ? true : false;
-			
-			
-					
+
 			motherGT = null;
 			fatherGT = null;
 
@@ -1018,7 +1009,7 @@ public class smartPhase {
 				motherAllele = patientAllele1;
 				confidence = 0.66;
 			}
-			
+
 			BitSet varFlagBits = new BitSet(4);
 			varFlagBits.set(0, motherHomVar);
 			varFlagBits.set(1, fatherHomVar);
@@ -1035,17 +1026,18 @@ public class smartPhase {
 				Genotype phasedGT = new GenotypeBuilder(patientGT).phased(true).attribute("TrioConfidence", confidence)
 						.alleles(alleles).make();
 
-				
 				if (innoc) {
-					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("Innocuous", true).attribute("VarFlags", varFlagBits).make();
+					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("Innocuous", true)
+							.attribute("VarFlags", varFlagBits).make();
 				} else {
 					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("VarFlags", varFlagBits).make();
 				}
 
 				outVariants.add(vc);
 				vc = null;
-			} else if(innoc){
-				vc = new VariantContextBuilder(var).attribute("Innocuous", true).attribute("VarFlags", varFlagBits).make();
+			} else if (innoc) {
+				vc = new VariantContextBuilder(var).attribute("Innocuous", true).attribute("VarFlags", varFlagBits)
+						.make();
 				outVariants.add(vc);
 				vc = null;
 			}
