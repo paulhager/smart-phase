@@ -256,7 +256,7 @@ public class smartPhase {
 				grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
 				curRecords = new ArrayList<SAMRecord>();
 				for (SamReader sr : samReaderSet) {
-					samIteratorList.add(sr.query(intervalContig, 0, 250000000, false));
+					samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, 250000000));
 				}
 				contigSwitch = true;
 				prevContig = intervalContig;
