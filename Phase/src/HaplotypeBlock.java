@@ -221,15 +221,15 @@ public class HaplotypeBlock {
 		}
 		
 		// Get final product confidence score using trio
-		confidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
+		ConfidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
 		cpTrio1.setConfidence(cpTrio1.confidence()*(double)nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 		
-		confidencePair<Double, Integer> cpTrio2 = multiplyConfidence(vc2, nearestTrioVC2);
+		ConfidencePair<Double, Integer> cpTrio2 = multiplyConfidence(vc2, nearestTrioVC2);
 		cpTrio1.setConfidence(cpTrio2.confidence()*(double)nearestTrioVC2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 		
 		// Try to calculate confidence using only read conf. scores if both variants are in same mergeBlock. 
 		if(vc1.getAttributeAsInt("mergedBlocks", -1) == vc2.getAttributeAsInt("mergedBlocks", -1)){
-			confidencePair<Double, Integer> cpRead = multiplyConfidence(vc1, vc2);
+			ConfidencePair<Double, Integer> cpRead = multiplyConfidence(vc1, vc2);
 			
 			// Compare amount of steps to determine which conf. score is returned
 			if(cpRead.steps() < (cpTrio1.steps() + cpTrio2.steps())/2){
@@ -264,11 +264,11 @@ public class HaplotypeBlock {
 		return nearestTrioVC;
 	}
 
-	private confidencePair<Double, Integer> multiplyConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
+	private ConfidencePair<Double, Integer> multiplyConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
 		double product = 1;
 		
 		if(vc1 == vc2){
-			return new confidencePair<Double, Integer>(1.0, 0);
+			return new ConfidencePair<Double, Integer>(1.0, 0);
 		}
 		
 		// Variants must be in same mergeBlock, or else something is wrong
@@ -298,7 +298,7 @@ public class HaplotypeBlock {
 		product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence");
 		
 				
-		return new confidencePair<Double, Integer>(product, cnt);
+		return new ConfidencePair<Double, Integer>(product, cnt);
 	}
 
 	/**

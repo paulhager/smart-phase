@@ -1,10 +1,10 @@
 
-public class confidencePair<D, I> {
+public class ConfidencePair<D, I> {
 	
 	private D confidence;
 	private I steps;
 	
-	public confidencePair(D confidence, I steps){
+	public ConfidencePair(D confidence, I steps){
 		this.confidence = confidence;
 		this.steps = steps;
 	}

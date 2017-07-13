@@ -40,7 +40,7 @@ import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFFileReader;
 import picard.pedigree.PedFile;
 
-public class smartPhase {
+public class SmartPhase {
 
 	public enum Phase {
 		CIS, TRANS, OBSERVED

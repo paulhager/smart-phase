@@ -5,10 +5,10 @@ import htsjdk.variant.variantcontext.VariantContext;
 
 public class PhaseCountTriple <T, U> {
 	private final Set<VariantContext> variants;
-	private final smartPhase.Phase phase;
+	private final SmartPhase.Phase phase;
 	
 	
-	public PhaseCountTriple(Set<VariantContext> key, smartPhase.Phase phase){
+	public PhaseCountTriple(Set<VariantContext> key, SmartPhase.Phase phase){
 		this.phase = phase;
 		this.variants = key;
 	}
@@ -37,7 +37,7 @@ public class PhaseCountTriple <T, U> {
 		if (!(obj instanceof PhaseCountTriple))
 			return false;
 		@SuppressWarnings("unchecked")
-		PhaseCountTriple<Set<VariantContext>, smartPhase.Phase> other = (PhaseCountTriple<Set<VariantContext>, smartPhase.Phase>) obj;
+		PhaseCountTriple<Set<VariantContext>, SmartPhase.Phase> other = (PhaseCountTriple<Set<VariantContext>, SmartPhase.Phase>) obj;
 		if (phase != other.phase)
 			return false;
 		if (variants == null) {
