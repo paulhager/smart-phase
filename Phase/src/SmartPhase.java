@@ -826,8 +826,9 @@ public class SmartPhase {
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
 
-			double confidence = Math.abs(((transCounter / 2) - cisCounter) / (((observedCounter / 2) + 1)));
-
+			double confidence = Math.abs((transCounter - 2*cisCounter) / (observedCounter + 1));
+			confidence = Math.min(confidence, 1.0);
+			
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
 				String[] prevTrioSplit = firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");

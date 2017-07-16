@@ -265,7 +265,7 @@ public class HaplotypeBlock {
 	}
 
 	private ConfidencePair<Double, Integer> multiplyConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
-		double product = 1;
+		double product = 1.0;
 		
 		if(vc1 == vc2){
 			return new ConfidencePair<Double, Integer>(1.0, 0);
