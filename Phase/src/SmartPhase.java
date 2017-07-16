@@ -64,7 +64,9 @@ public class SmartPhase {
 	static int notSimpleCounter = 0;
 	static int totalVarCounter = 0;
 	static int globalCis = 0;
+	static int globalCisLength = 0;
 	static int globalTrans = 0;
+	static int globalTransLength = 0;
 	static int globalNewBlock = 0;
 	static int globalContradiction = 0;
 
@@ -273,6 +275,8 @@ public class SmartPhase {
 		// Iterate over genomic regions
 		Iterator<Interval> intervalListIterator = iList.iterator();
 		ArrayList<VariantContext> variantsToPhase;
+		
+		int innocCounter = 0;
 
 		String prevContig = "";
 		while (intervalListIterator.hasNext()) {
@@ -453,6 +457,10 @@ public class SmartPhase {
 						if (!foundInner) {
 							missingVars.add(innerVariant);
 						}
+						
+						if(InnocuousFlag){
+							innocCounter++;
+						}
 
 						// Create bitset based on booleans
 						BitSet flagBits = new BitSet(3);
@@ -501,22 +509,31 @@ public class SmartPhase {
 		long second = (millis / 1000) % 60;
 		long minute = (millis / (1000 * 60)) % 60;
 		long hour = (millis / (1000 * 60 * 60)) % 24;
+		
+		double averageCisLength = (double) globalCisLength / globalCis;
+		double averageTransLength = (double) globalTransLength / globalTrans;
 
 		// Output statistics
 		System.out.println("Denovo count: " + denovoCounter);
 		System.out.println("Cis count: " + globalCis);
+		System.out.println("Avg dist between cis: " + averageCisLength);
 		System.out.println("Trans count: " + globalTrans);
+		System.out.println("Avg dist between trans: " + averageTransLength);
 		System.out.println("Newblock count: " + globalNewBlock);
-		System.out.println("Contradiction count: "+globalContradiction);
+		System.out.println("Contradiction count: " + globalContradiction);
+		System.out.println("Innoculous count: "+innocCounter);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 			PrintWriter pwOUTPUT = new PrintWriter(bwOUTPUT);
 			pwOUTPUT.println("Denovo count: " + denovoCounter);
 			pwOUTPUT.println("Cis count: " + globalCis);
+			pwOUTPUT.println("Avg dist between cis: " + averageCisLength);
 			pwOUTPUT.println("Trans count: " + globalTrans);
+			pwOUTPUT.println("Avg dist between trans: " + averageTransLength);
 			pwOUTPUT.println("Newblock count: " + globalNewBlock);
-			pwOUTPUT.println("Contradiction count: "+globalContradiction);
+			pwOUTPUT.println("Contradiction count: " + globalContradiction);
+			pwOUTPUT.println("Innoculous count: "+innocCounter);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -657,7 +674,7 @@ public class SmartPhase {
 						false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
 
 				Allele allele = patGT.getAllele(1);
-				if(!allele.isNonReference()){
+				if (!allele.isNonReference()) {
 					throw new Error("Only normalized vcf files are allowed.");
 				}
 				// Calculate correct position in read to be compared to
@@ -681,7 +698,7 @@ public class SmartPhase {
 
 				// Check alternative allele co-occurence on read
 				if ((!delVar || del) && (!insertVar || insert)) {
-					
+
 					// Increase observed count
 					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
 					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
@@ -698,17 +715,17 @@ public class SmartPhase {
 						// found on this read
 						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
 					} else {
-						
+
 						NOT_SeenInRead.add(v);
-						
+
 						// Increase TRANS counter for all examined and
 						// found on this read
 						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
 					}
 
-				} 
+				}
 			}
-		}		
+		}
 		trimPosVarsInRead = null;
 		trimmedRecords = null;
 
@@ -806,9 +823,10 @@ public class SmartPhase {
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0);
-			observedCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
-			
-			double confidence = Math.abs(((transCounter/2) - cisCounter) / (((observedCounter/2) + 1)));
+			observedCounter = phaseCounter.getOrDefault(
+					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+
+			double confidence = Math.abs(((transCounter / 2) - cisCounter) / (((observedCounter / 2) + 1)));
 
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
@@ -854,16 +872,18 @@ public class SmartPhase {
 					}
 				}
 			}
-			
+
 			VariantContext newVar = new VariantContextBuilder(secondVar)
 					.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
 			key = null;
 			if (cisCounter > transCounter) {
-				globalCis++;			
+				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
+				globalCis++;
 				hapBlock.addVariant(newVar, firstVarStrand);
 			} else if (transCounter > cisCounter) {
+				globalTransLength += (secondVar.getEnd() - firstVar.getStart());
 				globalTrans++;
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
@@ -1077,7 +1097,7 @@ public class SmartPhase {
 				} else {
 					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("VarFlags", varFlagBits).make();
 				}
-				
+
 				outVariants.add(vc);
 				vc = null;
 			} else if (innoc) {
