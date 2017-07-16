@@ -216,9 +216,17 @@ public class FilteredVariantReader {
 		
 		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).make();
 		
-		if(!allVariants.contains(varVC)){
-			allVariants.add(varVC);
+		boolean notNew = false;
+		// Check if variant already exists
+		for(VariantContext posVar : allVariants){
+			if(varVC.getStart() == posVar.getStart() && varVC.getEnd() == posVar.getEnd() && varVC.hasSameAllelesAs(posVar) && varVC.hasSameAlternateAllelesAs(posVar) && varVC.getContig().equals(posVar.getContig())){
+				notNew = true;
+			}
 		}
+		
+		if(!notNew){
+			allVariants.add(varVC);
+		} 
 		
 		return;
 	}
@@ -286,10 +294,17 @@ public class FilteredVariantReader {
 					
 					VariantContext newVarC = vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
 
-					// Create new variantContext and add
-					if (!possibleVariants.contains(newVarC) && curInterval.getContig().equals(entries[chromCol])) {
-						possibleVariants.add(newVarC);
+					boolean notNew = false;
+					// Check if variant already exists
+					for(VariantContext posVar : possibleVariants){
+						if(newVarC.getStart() == posVar.getStart() && newVarC.getEnd() == posVar.getEnd() && newVarC.hasSameAllelesAs(posVar) && newVarC.hasSameAlternateAllelesAs(posVar) && newVarC.getContig().equals(posVar.getContig())){
+							notNew = true;
+						}
 					}
+					// Create new variantContext and add
+					if (!notNew && curInterval.getContig().equals(entries[chromCol])) {
+						possibleVariants.add(newVarC);
+					} 					
 					
 					
 					// Check if contig changed
