@@ -22,6 +22,9 @@ import java.util.BitSet;
 //import org.broadinstitute.gatk.utils.genotyper.AlleleList;
 import org.apache.commons.cli.*;
 
+import htsjdk.samtools.Cigar;
+import htsjdk.samtools.CigarElement;
+import htsjdk.samtools.CigarOperator;
 import htsjdk.samtools.SAMFileHeader;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
@@ -639,9 +642,29 @@ public class SmartPhase {
 		Set<VariantContext> key;
 
 		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
-
+		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+		
+		HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
+		
 		for (SAMRecord r : trimmedRecords) {
-
+			
+			// Calculate end of first exon and start of second to find vars at edges for RNAseq data
+			int exon1End = 0;
+			int exon2Start = 0;
+			VariantContext varExon1 = null;
+			VariantContext varExon2 = null;
+			Cigar curCigar = r.getCigar();
+			if(curCigar.containsOperator(CigarOperator.N)){
+				for(CigarElement ce : curCigar.getCigarElements()){
+					if(ce.getOperator().equals(CigarOperator.N)){
+						exon2Start = exon1End + ce.getLength();
+						break;
+					}
+					if(ce.getOperator().consumesReferenceBases()){
+						exon1End += ce.getLength();
+					}
+				}
+			}
 			trimPosVarsInRead = new ArrayList<VariantContext>(variantsToPhase);
 
 			trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
@@ -654,6 +677,9 @@ public class SmartPhase {
 			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
 			ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
 
+			
+			boolean varEx1Seen = false;
+			ArrayList<VariantContext> exVarList = new ArrayList<VariantContext>();
 			for (VariantContext v : trimPosVarsInRead) {
 
 				Genotype patGT = v.getGenotype(PATIENT_ID);
@@ -695,6 +721,58 @@ public class SmartPhase {
 						continue;
 					}
 				}
+				
+				// Determine variants closest to intron
+				if(exon1End != 0 && exon2Start != 0){
+					System.out.println(r.getAlignmentStart());
+					System.out.println(r.getAlignmentEnd());
+					System.out.println(subStrStart);
+					System.out.println(exon1End);
+					System.out.println("---");
+					if(subStrStart < exon1End){
+						if(varExon1 == null){
+							System.out.println("Set varExon1!");
+							varExon1 = v;
+							if ((!delVar || del) && (!insertVar || insert)) {
+								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+									varEx1Seen = true;
+								}
+							}
+							exVarList.clear();
+							exVarList.add(varExon1);
+						} else if(varExon1.getStart() < subStrStart){
+							varEx1Seen = false;
+							if ((!delVar || del) && (!insertVar || insert)) {
+								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+									varEx1Seen = true;
+								}
+							}
+							varExon1 = v;
+							exVarList.clear();
+							exVarList.add(varExon1);
+						}
+					} else if (subStrStart > exon2Start){
+						if(varExon2 == null){
+							System.out.println("Set varExon2!");
+							if ((!delVar || del) && (!insertVar || insert)) {
+								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+									if(varEx1Seen){
+										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.CIS);
+									} else {
+										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
+									}
+								} else if (varEx1Seen){
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
+								}
+							}
+							varExon2 = v;
+							exonStartVars.put(v, varExon1);
+						} else if(varExon2.getStart() > subStrStart){
+							System.err.println("START DECREASED");
+						}
+					}
+				}
+				
 
 				// Check alternative allele co-occurence on read
 				if ((!delVar || del) && (!insertVar || insert)) {
@@ -826,6 +904,7 @@ public class SmartPhase {
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
 
+			key = new HashSet<VariantContext>();
 			double confidence = Math.abs((transCounter - 2*cisCounter) / (observedCounter + 1));
 			confidence = Math.min(confidence, 1.0);
 			
@@ -878,7 +957,6 @@ public class SmartPhase {
 					.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
-			key = null;
 			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
@@ -896,6 +974,39 @@ public class SmartPhase {
 						new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 						.attribute("Preceding", null).make();
 				hapBlock.addVariant(newVarNewBlock, HaplotypeBlock.Strand.STRAND1);
+			}
+			
+			// SecondVar is start of another exon. Check if can merge with other block
+			if(exonStartVars.containsKey(secondVar)){
+				VariantContext endOfFirstExon = exonStartVars.get(secondVar);
+				key.add(secondVar);
+				key.add(endOfFirstExon);
+				cisCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+				transCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
+						0);
+				System.out.println("Found second key");
+				if(cisCounter>transCounter){
+					for(HaplotypeBlock hb : intervalBlocks){
+						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
+						if(ex1Strand != null){
+							int origIndex = intervalBlocks.indexOf(hb);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), ex1Strand, -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), hb.getOppStrand(ex1Strand), -2);
+							intervalBlocks.set(origIndex, hb);
+						}
+					}
+				} else {
+					for(HaplotypeBlock hb : intervalBlocks){
+						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
+						if(ex1Strand != null){
+							int origIndex = intervalBlocks.indexOf(hb);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), hb.getOppStrand(ex1Strand), -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), ex1Strand, -2);
+							intervalBlocks.set(origIndex, hb);
+						}
+					}
+				}
+				
 			}
 		}
 		intervalBlocks.add(hapBlock);
