@@ -248,6 +248,10 @@ public class FilteredVariantReader {
 			return allVarsContigs.contains(contig);
 		}
 		
+		if(gzipVCF){
+			return true;
+		}
+		
 		return contigPointers.containsKey(contig);
 	}
 	
