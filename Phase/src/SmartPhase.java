@@ -728,7 +728,7 @@ public class SmartPhase {
 					System.out.println(r.getAlignmentEnd());
 					System.out.println(subStrStart);
 					System.out.println(exon1End);
-					System.out.println("---");
+					System.out.println(exon2Start);
 					if(subStrStart < exon1End){
 						if(varExon1 == null){
 							System.out.println("Set varExon1!");
@@ -771,6 +771,7 @@ public class SmartPhase {
 							System.err.println("START DECREASED");
 						}
 					}
+					System.out.println("---");
 				}
 				
 
