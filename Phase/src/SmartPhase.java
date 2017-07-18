@@ -314,6 +314,7 @@ public class SmartPhase {
 
 			// Grab filtered variants within current region
 			ArrayList<VariantContext> regionFiltVariantList = filteredVCFReader.scan(curInterval, contigSwitch);
+			regionFiltVariantList.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
 
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
