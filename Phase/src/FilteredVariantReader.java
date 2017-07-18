@@ -15,6 +15,7 @@ import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
+import htsjdk.variant.vcf.VCFFileReader;
 
 public class FilteredVariantReader {
 
@@ -33,6 +34,9 @@ public class FilteredVariantReader {
 	
 	private boolean vcf = false;
 	private boolean cohort;
+	private boolean gzipVCF = false;
+	
+	private VCFFileReader vcfREADER;
 	
 	private ArrayList<VariantContext> allVariants = new ArrayList<VariantContext>();
 
@@ -105,8 +109,15 @@ public class FilteredVariantReader {
 				return;
 			}
 			
-			// TODO: If file ends with .gz, handle!!!
-			if(inFile.getPath().endsWith(".vcf") || inFile.getPath().endsWith(".vcf.gz")){		
+			//File is bgzipped vcf file and can be handeled as such. Index is required
+			if(inFile.getPath().endsWith(".vcf.gz")){
+				vcfREADER = new VCFFileReader(inFile);
+				gzipVCF = true;
+				return;
+			}
+			
+			// File is normal vcf
+			if(inFile.getPath().endsWith(".vcf")){		
 				vcf = true;
 				
 				// Skip all commented lines if VCF
@@ -244,6 +255,10 @@ public class FilteredVariantReader {
 
 		int intervalStart = curInterval.getStart();
 		int intervalEnd = curInterval.getEnd();
+		
+		if(gzipVCF){
+			return new ArrayList<VariantContext>(vcfREADER.query(curInterval.getContig(), intervalStart, intervalEnd).toList());
+		}
 		
 		if(cohort){
 			ArrayList<VariantContext> scanVars = new ArrayList<VariantContext>(allVariants);

@@ -751,7 +751,7 @@ public class SmartPhase {
 							exVarList.clear();
 							exVarList.add(varExon1);
 						}
-					} else if (subStrStart > exon2Start){
+					} else if (subStrStart > exon2Start && varExon1 != null){
 						if(varExon2 == null){
 							System.out.println("Set varExon2!");
 							if ((!delVar || del) && (!insertVar || insert)) {
