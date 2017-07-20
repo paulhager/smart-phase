@@ -288,6 +288,7 @@ public class SmartPhase {
 			String intervalName = "";
 			int intervalStart = curInterval.getStart();
 			int intervalEnd = curInterval.getEnd();
+			System.out.println(intervalStart);
 			if (curInterval.getName() != null) {
 				intervalName = curInterval.getName();
 			}
