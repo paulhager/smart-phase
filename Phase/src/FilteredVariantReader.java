@@ -238,7 +238,6 @@ public class FilteredVariantReader {
 		}
 		
 		if(!notNew){
-			System.out.println("Added: "+varVC.toStringDecodeGenotypes());
 			allVariants.add(varVC);
 		} 
 		
