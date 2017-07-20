@@ -225,7 +225,9 @@ public class FilteredVariantReader {
 			chrom = "chr"+chrom;
 		}
 		
-		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).make();
+		
+		
+		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
 		
 		boolean notNew = false;
 		// Check if variant already exists
