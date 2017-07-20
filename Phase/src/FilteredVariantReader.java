@@ -265,6 +265,7 @@ public class FilteredVariantReader {
 		}
 		
 		if(cohort){
+			System.out.println(allVariants.size());
 			ArrayList<VariantContext> scanVars = new ArrayList<VariantContext>(allVariants);
 			scanVars.removeIf(v -> !v.getContig().equals(curInterval.getContig()) || v.getStart() < intervalStart || v.getEnd() > intervalEnd);
 			return scanVars;
