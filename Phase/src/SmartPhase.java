@@ -528,7 +528,7 @@ public class SmartPhase {
 		System.out.println("Avg dist between trans: " + averageTransLength);
 		System.out.println("Newblock count: " + globalNewBlock);
 		System.out.println("Contradiction count: " + globalContradiction);
-		System.out.println("Innoculous count: "+innocCounter);
+		System.out.println("Innocuous count: "+innocCounter);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
@@ -540,7 +540,7 @@ public class SmartPhase {
 			pwOUTPUT.println("Avg dist between trans: " + averageTransLength);
 			pwOUTPUT.println("Newblock count: " + globalNewBlock);
 			pwOUTPUT.println("Contradiction count: " + globalContradiction);
-			pwOUTPUT.println("Innoculous count: "+innocCounter);
+			pwOUTPUT.println("Innocuous count: "+innocCounter);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -677,6 +677,19 @@ public class SmartPhase {
 			if (trimPosVarsInRead.size() < 2) {
 				continue;
 			}
+			
+			
+			if(exon1End != 0 && exon2Start != 0 && r.getAlignmentStart() == 256249){
+				System.out.println("Alignment Start: "+r.getAlignmentStart());
+				System.out.println("Exon 1 End: "+(r.getAlignmentStart()+exon1End));
+				System.out.println("Exon 2 Start: "+(r.getAlignmentStart()+exon2Start));
+				System.out.println("Alignment End: "+r.getAlignmentEnd());
+				for (VariantContext v : trimPosVarsInRead) {
+					System.out.println(v.toStringDecodeGenotypes());
+				}
+				System.out.println("----");
+			}
+			
 
 			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
 			ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
@@ -910,8 +923,7 @@ public class SmartPhase {
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
 
 			key = new HashSet<VariantContext>();
-			double confidence = Math.abs((transCounter - 2*cisCounter) / (observedCounter + 1));
-			confidence = Math.min(confidence, 1.0);
+			double confidence = Math.abs((transCounter - Math.min(2*cisCounter, observedCounter)) / (observedCounter + 1));
 			
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
