@@ -1012,15 +1012,15 @@ public class SmartPhase {
 				if(cisCounter>transCounter){
 					for(HaplotypeBlock hb : intervalBlocks){
 						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
-						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
+						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
 							System.out.println("before");
 							for(VariantContext v : hb.getAllVariants()){
 								System.out.println(v.toStringDecodeGenotypes());
 							}
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), ex1Strand, -2);
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), hb.getOppStrand(ex1Strand), -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)), ex1Strand, -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))), hb.getOppStrand(ex1Strand), -2);
 							System.out.println("after");
 							for(VariantContext v : hb.getAllVariants()){
 								System.out.println(v.toStringDecodeGenotypes());
@@ -1031,15 +1031,15 @@ public class SmartPhase {
 				} else if (transCounter>cisCounter) {
 					for(HaplotypeBlock hb : intervalBlocks){
 						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
-						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
+						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
 							System.out.println("before");
 							for(VariantContext v : hb.getAllVariants()){
 								System.out.println(v.toStringDecodeGenotypes());
 							}
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), hb.getOppStrand(ex1Strand), -2);
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), ex1Strand, -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)), hb.getOppStrand(ex1Strand), -2);
+							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))), ex1Strand, -2);
 							System.out.println("after");
 							for(VariantContext v : hb.getAllVariants()){
 								System.out.println(v.toStringDecodeGenotypes());
