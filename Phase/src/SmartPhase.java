@@ -1013,7 +1013,6 @@ public class SmartPhase {
 					for(HaplotypeBlock hb : intervalBlocks){
 						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
 						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
-						System.out.println(ex1Strand.name());
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
 							System.out.println("before");
@@ -1033,7 +1032,6 @@ public class SmartPhase {
 					for(HaplotypeBlock hb : intervalBlocks){
 						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
 						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
-						System.out.println(ex1Strand.name());
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
 							System.out.println("before");
