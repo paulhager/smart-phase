@@ -1003,6 +1003,7 @@ public class SmartPhase {
 				VariantContext endOfFirstExon = exonStartVars.get(secondVar);
 				key.add(secondVar);
 				key.add(endOfFirstExon);
+				System.out.println(endOfFirstExon.toStringDecodeGenotypes());
 				cisCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 				transCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 						0);
