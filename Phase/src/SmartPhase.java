@@ -784,7 +784,6 @@ public class SmartPhase {
 										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
 									}
 								} else if (varEx1Seen){
-									System.out.println("didnt match");
 									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
 								}
 							}
@@ -1015,8 +1014,16 @@ public class SmartPhase {
 						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
+							System.out.println("before");
+							for(VariantContext v : hb.getAllVariants()){
+								System.out.println(v.toStringDecodeGenotypes());
+							}
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), ex1Strand, -2);
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), hb.getOppStrand(ex1Strand), -2);
+							System.out.println("after");
+							for(VariantContext v : hb.getAllVariants()){
+								System.out.println(v.toStringDecodeGenotypes());
+							}
 							intervalBlocks.set(origIndex, hb);
 						}
 					}
@@ -1025,8 +1032,16 @@ public class SmartPhase {
 						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
 						if(ex1Strand != null){
 							int origIndex = intervalBlocks.indexOf(hb);
+							System.out.println("before");
+							for(VariantContext v : hb.getAllVariants()){
+								System.out.println(v.toStringDecodeGenotypes());
+							}
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrand(secondVar)), hb.getOppStrand(ex1Strand), -2);
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrand(secondVar))), ex1Strand, -2);
+							System.out.println("after");
+							for(VariantContext v : hb.getAllVariants()){
+								System.out.println(v.toStringDecodeGenotypes());
+							}
 							intervalBlocks.set(origIndex, hb);
 						}
 					}
