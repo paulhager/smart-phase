@@ -659,6 +659,7 @@ public class SmartPhase {
 			VariantContext varExon2 = null;
 			Cigar curCigar = r.getCigar();
 			if(curCigar.containsOperator(CigarOperator.N)){
+				//System.out.println(r.getReadName());
 				for(CigarElement ce : curCigar.getCigarElements()){
 					if(ce.getOperator().equals(CigarOperator.N)){
 						exon2Start = exon1End + ce.getLength();
@@ -678,8 +679,9 @@ public class SmartPhase {
 				continue;
 			}
 			
-			
-			if(exon1End != 0 && exon2Start != 0 && r.getAlignmentStart() == 256249){
+			/*
+			if(exon1End != 0 && exon2Start != 0){
+				System.out.println(r.getReadName());
 				System.out.println("Alignment Start: "+r.getAlignmentStart());
 				System.out.println("Exon 1 End: "+(r.getAlignmentStart()+exon1End));
 				System.out.println("Exon 2 Start: "+(r.getAlignmentStart()+exon2Start));
@@ -689,6 +691,7 @@ public class SmartPhase {
 				}
 				System.out.println("----");
 			}
+			*/
 			
 
 			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
@@ -741,11 +744,13 @@ public class SmartPhase {
 				
 				// Determine variants closest to intron
 				if(exon1End != 0 && exon2Start != 0){
+					/*
 					System.out.println(r.getAlignmentStart());
 					System.out.println(r.getAlignmentEnd());
 					System.out.println(subStrStart);
 					System.out.println(exon1End);
 					System.out.println(exon2Start);
+					*/
 					if(subStrStart < exon1End){
 						if(varExon1 == null){
 							System.out.println("Set varExon1!");
@@ -768,7 +773,7 @@ public class SmartPhase {
 							exVarList.clear();
 							exVarList.add(varExon1);
 						}
-					} else if (subStrStart > exon2Start && varExon1 != null){
+					} else if (v.getStart() > exon2Start+r.getAlignmentStart() && varExon1 != null){
 						if(varExon2 == null){
 							System.out.println("Set varExon2!");
 							if ((!delVar || del) && (!insertVar || insert)) {
@@ -779,16 +784,17 @@ public class SmartPhase {
 										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
 									}
 								} else if (varEx1Seen){
+									System.out.println("didnt match");
 									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
 								}
 							}
 							varExon2 = v;
 							exonStartVars.put(v, varExon1);
-						} else if(varExon2.getStart() > subStrStart){
+						} else if(varExon2.getStart() > v.getStart()){
 							System.err.println("START DECREASED");
 						}
 					}
-					System.out.println("---");
+					//System.out.println("---");
 				}
 				
 
@@ -1002,6 +1008,8 @@ public class SmartPhase {
 				transCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 						0);
 				System.out.println("Found second key");
+				System.out.println("cis: "+cisCounter);
+				System.out.println("trans: "+transCounter);
 				if(cisCounter>transCounter){
 					for(HaplotypeBlock hb : intervalBlocks){
 						HaplotypeBlock.Strand ex1Strand = hb.getStrand(endOfFirstExon);
