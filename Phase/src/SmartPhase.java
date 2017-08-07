@@ -76,13 +76,13 @@ public class SmartPhase {
 	public static void main(String[] args) throws Exception {
 		// Parse Options
 		Options options = new Options();
-		options.addRequiredOption("g", "gene-regions", true,
-				"Path to file containing genomic regions to be analyzed (.bed)");
 		options.addRequiredOption("f", "filtered-variants", true,
 				"Path to file containing patient variants filtered for significance");
 		options.addRequiredOption("a", "all-variants", true, "Path to file containing all patient variants (.vcf)");
 		options.addRequiredOption("p", "patient", true, "ID of patient through vcf and ped files.");
 		options.addRequiredOption("o", "output", true, "Path to desired output file.");
+		options.addOption("g", "gene-regions", true,
+				"Path to file containing genomic regions to be analyzed (.bed)");
 		options.addOption("r", "reads1", true,
 				"Comma seperated list of paths to files containing aligned patient reads.");
 		options.addOption("m", "mapq", true,
