@@ -808,7 +808,8 @@ public class SmartPhase {
 						// found on this read
 						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
 					}
-
+				} else {
+					NOT_SeenInRead.add(v);
 				}
 			}
 		}
