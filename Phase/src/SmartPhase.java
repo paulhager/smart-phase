@@ -782,13 +782,12 @@ public class SmartPhase {
 					}
 				}
 				
+				// Increase observed count
+				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
+				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
 
 				// Check alternative allele co-occurence on read
 				if ((!delVar || del) && (!insertVar || insert)) {
-
-					// Increase observed count
-					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
-					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
 
 					// Variant is found in read
 					if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
