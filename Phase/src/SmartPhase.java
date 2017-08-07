@@ -591,6 +591,11 @@ public class SmartPhase {
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
 						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
 						|| curRec.getNotPrimaryAlignmentFlag()) {
+					if(curInterval.getStart() == 62290320){
+						System.out.println(curRec.getReadName());
+						System.out.println(curRec.getFlags());
+						System.out.println("---");
+					}
 					continue;
 				}
 
@@ -658,6 +663,12 @@ public class SmartPhase {
 		HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
 		
 		for (SAMRecord r : trimmedRecords) {
+			
+			if(curInterval.getStart() == 62290320){
+				System.out.println(r.getReadName());
+				System.out.println(r.getFlags());
+				System.out.println("---");
+			}
 			
 			// Calculate end of first exon and start of second to find vars at edges for RNAseq data
 			int exon1End = 0;
