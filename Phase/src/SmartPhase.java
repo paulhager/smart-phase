@@ -916,15 +916,6 @@ public class SmartPhase {
 			key = new HashSet<VariantContext>();
 			double confidence = Math.abs((transCounter - Math.min(2*cisCounter, observedCounter)) / (observedCounter + 1));
 			
-			if(curInterval.getStart() == 42634988){
-				System.out.println(firstVar.getStart());
-				System.out.println(secondVar.getStart());
-				System.out.println("cis: "+cisCounter);
-				System.out.println("trans: "+transCounter);
-				System.out.println("observed: "+observedCounter);
-				System.out.println("---");
-			}
-			
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
 				String[] prevTrioSplit = firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
@@ -983,6 +974,11 @@ public class SmartPhase {
 				globalTrans++;
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
+				
+				// Data gathering on close, unphased vars
+				if(secondVar.getStart() - firstVar.getStart() < 150){
+					System.out.println("@@ C: "+cisCounter+" | T: "+transCounter+" | O: "+observedCounter);
+				}
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
 				intervalBlocks.add(hapBlock);
