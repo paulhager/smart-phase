@@ -100,7 +100,7 @@ public class SmartPhase {
 		// File inputVCF_Mot;
 		// File inputVCF_Fat;
 
-		final File inputBED = new File(cmd.getOptionValue("g"));
+		File inputBED = null;
 		final File inputVCF_FILTER = new File(cmd.getOptionValue("f"));
 		final File inputVCF_ALL = new File(cmd.getOptionValue("a"));
 		final String inputREADFILESSTRING = cmd.getOptionValue("r");
@@ -123,6 +123,16 @@ public class SmartPhase {
 			COHORT = true;
 		} else {
 			COHORT = false;
+			if(!cmd.hasOption("g")){
+				throw new Exception("If not in cohort mode, a genomic regions bed file must be provided!");
+			}
+			
+			inputBED = new File(cmd.getOptionValue("g"));
+			
+			if (!inputBED.exists()) {
+				throw new FileNotFoundException("File " + inputBED.getAbsolutePath() + " does not exist!");
+			}
+			
 		}
 
 		if (cmd.hasOption("r")) {
@@ -156,9 +166,6 @@ public class SmartPhase {
 		}
 
 		// Ensure required files all exist
-		if (!inputBED.exists()) {
-			throw new FileNotFoundException("File " + inputBED.getAbsolutePath() + " does not exist!");
-		}
 		if (!inputVCF_FILTER.exists()) {
 			throw new FileNotFoundException("File " + inputVCF_FILTER.getAbsolutePath() + " does not exist!");
 		}
