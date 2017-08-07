@@ -945,6 +945,14 @@ public class SmartPhase {
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
 
+			if(curInterval.getStart() == 62290320){
+				System.out.println("firstVar: "+firstVar.toStringDecodeGenotypes());
+				System.out.println("secondVar: "+secondVar.toStringDecodeGenotypes());
+				System.out.println("cis: "+cisCounter);
+				System.out.println("trans: "+transCounter);
+				System.out.println("---");
+			}
+			
 			key = new HashSet<VariantContext>();
 			double confidence = Math.abs((transCounter - Math.min(2*cisCounter, observedCounter)) / (observedCounter + 1));
 			
