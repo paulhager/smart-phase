@@ -591,11 +591,7 @@ public class SmartPhase {
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
 						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
 						|| curRec.getNotPrimaryAlignmentFlag()) {
-					if(curInterval.getStart() == 62290320){
-						System.out.println(curRec.getReadName());
-						System.out.println(curRec.getFlags());
-						System.out.println("---");
-					}
+
 					continue;
 				}
 
@@ -664,12 +660,6 @@ public class SmartPhase {
 		
 		for (SAMRecord r : trimmedRecords) {
 			
-			if(curInterval.getStart() == 62290320){
-				System.out.println(r.getReadName());
-				System.out.println(r.getFlags());
-				System.out.println("---");
-			}
-			
 			// Calculate end of first exon and start of second to find vars at edges for RNAseq data
 			int exon1End = 0;
 			int exon2Start = 0;
@@ -677,7 +667,6 @@ public class SmartPhase {
 			VariantContext varExon2 = null;
 			Cigar curCigar = r.getCigar();
 			if(curCigar.containsOperator(CigarOperator.N)){
-				//System.out.println(r.getReadName());
 				for(CigarElement ce : curCigar.getCigarElements()){
 					if(ce.getOperator().equals(CigarOperator.N)){
 						exon2Start = exon1End + ce.getLength();
@@ -696,20 +685,7 @@ public class SmartPhase {
 			if (trimPosVarsInRead.size() < 2) {
 				continue;
 			}
-			
-			/*
-			if(exon1End != 0 && exon2Start != 0){
-				System.out.println(r.getReadName());
-				System.out.println("Alignment Start: "+r.getAlignmentStart());
-				System.out.println("Exon 1 End: "+(r.getAlignmentStart()+exon1End));
-				System.out.println("Exon 2 Start: "+(r.getAlignmentStart()+exon2Start));
-				System.out.println("Alignment End: "+r.getAlignmentEnd());
-				for (VariantContext v : trimPosVarsInRead) {
-					System.out.println(v.toStringDecodeGenotypes());
-				}
-				System.out.println("----");
-			}
-			*/
+
 			
 
 			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
@@ -762,13 +738,6 @@ public class SmartPhase {
 				
 				// Determine variants closest to intron
 				if(exon1End != 0 && exon2Start != 0){
-					/*
-					System.out.println(r.getAlignmentStart());
-					System.out.println(r.getAlignmentEnd());
-					System.out.println(subStrStart);
-					System.out.println(exon1End);
-					System.out.println(exon2Start);
-					*/
 					if(subStrStart < exon1End){
 						if(varExon1 == null){
 							System.out.println("Set varExon1!");
@@ -811,7 +780,6 @@ public class SmartPhase {
 							System.err.println("START DECREASED");
 						}
 					}
-					//System.out.println("---");
 				}
 				
 
@@ -944,17 +912,18 @@ public class SmartPhase {
 					0);
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
-
-			if(curInterval.getStart() == 62290320){
-				System.out.println("firstVar: "+firstVar.toStringDecodeGenotypes());
-				System.out.println("secondVar: "+secondVar.toStringDecodeGenotypes());
-				System.out.println("cis: "+cisCounter);
-				System.out.println("trans: "+transCounter);
-				System.out.println("---");
-			}
 			
 			key = new HashSet<VariantContext>();
 			double confidence = Math.abs((transCounter - Math.min(2*cisCounter, observedCounter)) / (observedCounter + 1));
+			
+			if(curInterval.getStart() == 42634988){
+				System.out.println(firstVar.getStart());
+				System.out.println(secondVar.getStart());
+				System.out.println("cis: "+cisCounter);
+				System.out.println("trans: "+transCounter);
+				System.out.println("observed: "+observedCounter);
+				System.out.println("---");
+			}
 			
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
