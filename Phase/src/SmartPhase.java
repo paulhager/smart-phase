@@ -72,6 +72,7 @@ public class SmartPhase {
 	static int globalTransLength = 0;
 	static int globalNewBlock = 0;
 	static int globalContradiction = 0;
+	static int globalRNAseqCount = 0;
 
 	public static void main(String[] args) throws Exception {
 		// Parse Options
@@ -536,6 +537,7 @@ public class SmartPhase {
 		System.out.println("Newblock count: " + globalNewBlock);
 		System.out.println("Contradiction count: " + globalContradiction);
 		System.out.println("Innocuous count: "+innocCounter);
+		System.out.println("RNAseq jump count: "+globalRNAseqCount);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
@@ -548,6 +550,7 @@ public class SmartPhase {
 			pwOUTPUT.println("Newblock count: " + globalNewBlock);
 			pwOUTPUT.println("Contradiction count: " + globalContradiction);
 			pwOUTPUT.println("Innocuous count: "+innocCounter);
+			pwOUTPUT.println("RNAseq jump count: "+globalRNAseqCount);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -740,7 +743,6 @@ public class SmartPhase {
 				if(exon1End != 0 && exon2Start != 0){
 					if(subStrStart < exon1End){
 						if(varExon1 == null){
-							System.out.println("Set varExon1!");
 							varExon1 = v;
 							if ((!delVar || del) && (!insertVar || insert)) {
 								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
@@ -762,7 +764,6 @@ public class SmartPhase {
 						}
 					} else if (v.getStart() > exon2Start+r.getAlignmentStart() && varExon1 != null){
 						if(varExon2 == null){
-							System.out.println("Set varExon2!");
 							if ((!delVar || del) && (!insertVar || insert)) {
 								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 									if(varEx1Seen){
@@ -975,10 +976,6 @@ public class SmartPhase {
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
 				
-				// Data gathering on close, unphased vars
-				if(secondVar.getStart() - firstVar.getStart() < 150){
-					System.out.println("@@ C: "+cisCounter+" | T: "+transCounter+" | O: "+observedCounter);
-				}
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
 				intervalBlocks.add(hapBlock);
@@ -994,48 +991,28 @@ public class SmartPhase {
 				VariantContext endOfFirstExon = exonStartVars.get(secondVar);
 				key.add(secondVar);
 				key.add(endOfFirstExon);
-				System.out.println(endOfFirstExon.toStringDecodeGenotypes());
 				cisCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 				transCounter = skipIntronCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 						0);
-				System.out.println("Found second key");
-				System.out.println("cis: "+cisCounter);
-				System.out.println("trans: "+transCounter);
 				if(cisCounter>transCounter){
 					for(HaplotypeBlock hb : intervalBlocks){
-						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
 						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
 						if(ex1Strand != null){
+							globalRNAseqCount++;
 							int origIndex = intervalBlocks.indexOf(hb);
-							System.out.println("before");
-							for(VariantContext v : hb.getAllVariants()){
-								System.out.println(v.toStringDecodeGenotypes());
-							}
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)), ex1Strand, -2);
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))), hb.getOppStrand(ex1Strand), -2);
-							System.out.println("after");
-							for(VariantContext v : hb.getAllVariants()){
-								System.out.println(v.toStringDecodeGenotypes());
-							}
 							intervalBlocks.set(origIndex, hb);
 						}
 					}
 				} else if (transCounter>cisCounter) {
 					for(HaplotypeBlock hb : intervalBlocks){
-						System.out.println(hb.getBlockStart()+" --- "+hb.getBlockEnd());
 						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
 						if(ex1Strand != null){
+							globalRNAseqCount++;
 							int origIndex = intervalBlocks.indexOf(hb);
-							System.out.println("before");
-							for(VariantContext v : hb.getAllVariants()){
-								System.out.println(v.toStringDecodeGenotypes());
-							}
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)), hb.getOppStrand(ex1Strand), -2);
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))), ex1Strand, -2);
-							System.out.println("after");
-							for(VariantContext v : hb.getAllVariants()){
-								System.out.println(v.toStringDecodeGenotypes());
-							}
 							intervalBlocks.set(origIndex, hb);
 						}
 					}
