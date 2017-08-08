@@ -213,10 +213,10 @@ public class HaplotypeBlock {
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
 		
-		System.out.println(nearestTrioVC1.getStart());
-		System.out.println(vc1.getStart());
-		System.out.println(nearestTrioVC2.getStart());
-		System.out.println(vc2.getStart());
+		System.out.println(nearestTrioVC1.toStringDecodeGenotypes());
+		System.out.println(vc1.toStringDecodeGenotypes());
+		System.out.println(nearestTrioVC2.toStringDecodeGenotypes());
+		System.out.println(vc2.toStringDecodeGenotypes());
 		System.out.println("---");
 
 		// No trio info available
