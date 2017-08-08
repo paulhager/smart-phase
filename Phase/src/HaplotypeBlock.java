@@ -213,6 +213,7 @@ public class HaplotypeBlock {
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
 		
+		System.out.println("---");
 		System.out.println(nearestTrioVC1.toStringDecodeGenotypes());
 		System.out.println(vc1.toStringDecodeGenotypes());
 		System.out.println(nearestTrioVC2.toStringDecodeGenotypes());

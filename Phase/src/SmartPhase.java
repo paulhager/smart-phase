@@ -1221,6 +1221,7 @@ public class SmartPhase {
 					vc = new VariantContextBuilder(var).genotypes(phasedGT).attribute("VarFlags", varFlagBits).make();
 				}
 
+				System.out.println(vc.toStringDecodeGenotypes());
 				outVariants.add(vc);
 				vc = null;
 			} else if (innoc) {
