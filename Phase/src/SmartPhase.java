@@ -54,6 +54,7 @@ public class SmartPhase {
 	static ArrayList<SAMRecordIterator> samIteratorList = new ArrayList<SAMRecordIterator>();
 	static HashMap<SAMRecordIterator, SAMRecord> grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
 	static SAMRecord curRec = null;
+	static ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
 	static String prevContig = "";
 	static double[] minMAPQ;
 
@@ -272,7 +273,7 @@ public class SmartPhase {
 			iList = iList.uniqued();
 		}
 
-		ArrayList<SamReader> samReaderSet = new ArrayList<SamReader>();
+		
 		if (READS) {
 			// Create factory to read bam files and add iterators to list
 			for (File inputReadsFile : inputREADFILES) {
@@ -555,6 +556,16 @@ public class SmartPhase {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	private int countReads(VariantContext vc1, VariantContext vc2){
+		int count = 0;
+		if (READS) {
+			// Create factory to read bam files and add iterators to list
+			for (SamReader samReader : samReaderSet) {
+			}
+		}
+		return count;
 	}
 
 	public static String grabPatID() {
@@ -1249,37 +1260,27 @@ public class SmartPhase {
 			return currentBlocks;
 		}
 
-		boolean sameBlock = false;
 		int mergeBlockCntr = 2;
-		varLoop:
 		for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
 			}
-			
-			if(mergeBlock != null && mergeBlock.setPhased(trioVar) && sameBlock){
-				continue;
-			} else{
-				sameBlock = false;
-			}
 
 			// Increment blocks as long as var is ahead of block
 			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
-				hapBlockIt.remove();
 				curBlock = hapBlockIt.next();
 			}
-			
 			// Check if current trio var lands in current block. If yes, merge
-			if (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
-				System.out.println(curBlock.getBlockStart());
+			while (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
 
 				// Initialize mergeblock to first block containing trio var
 				if (mergeBlock == null) {
 					mergeBlock = curBlock;
 					prevTrioVar = trioVar;
-					sameBlock = true;
-					continue varLoop;
+					hapBlockIt.remove();
+					curBlock = hapBlockIt.next();
+					continue;
 				}
 
 				// [0] is always mother. [1] is always father
@@ -1308,7 +1309,8 @@ public class SmartPhase {
 
 				mergeBlockCntr++;
 				prevTrioVar = trioVar;
-				sameBlock = true;
+				hapBlockIt.remove();
+				curBlock = hapBlockIt.next();
 			}
 		}
 		if (mergeBlock != null) {
@@ -1341,6 +1343,8 @@ public class SmartPhase {
 				if (!trioVar.getGenotype(PATIENT_ID).isPhased()
 						&& (trioVar.getAttributeAsBoolean("Innocuous", false))) {
 					curBlock.setTripHet(trioVar);
+				} else {
+					curBlock.setPhased(trioVar);
 				}
 			}
 		}
