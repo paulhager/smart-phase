@@ -1249,27 +1249,37 @@ public class SmartPhase {
 			return currentBlocks;
 		}
 
+		boolean sameBlock = false;
 		int mergeBlockCntr = 2;
+		varLoop:
 		for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
 			}
+			
+			if(mergeBlock != null && mergeBlock.setPhased(trioVar) && sameBlock){
+				continue;
+			} else{
+				sameBlock = false;
+			}
 
 			// Increment blocks as long as var is ahead of block
 			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
+				hapBlockIt.remove();
 				curBlock = hapBlockIt.next();
 			}
+			
 			// Check if current trio var lands in current block. If yes, merge
-			while (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
+			if (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
+				System.out.println(curBlock.getBlockStart());
 
 				// Initialize mergeblock to first block containing trio var
 				if (mergeBlock == null) {
 					mergeBlock = curBlock;
 					prevTrioVar = trioVar;
-					hapBlockIt.remove();
-					curBlock = hapBlockIt.next();
-					continue;
+					sameBlock = true;
+					continue varLoop;
 				}
 
 				// [0] is always mother. [1] is always father
@@ -1298,8 +1308,7 @@ public class SmartPhase {
 
 				mergeBlockCntr++;
 				prevTrioVar = trioVar;
-				hapBlockIt.remove();
-				curBlock = hapBlockIt.next();
+				sameBlock = true;
 			}
 		}
 		if (mergeBlock != null) {

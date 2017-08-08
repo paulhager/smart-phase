@@ -212,6 +212,11 @@ public class HaplotypeBlock {
 	public double calculateConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
+
+		// No trio info available
+		if (nearestTrioVC1 == null || nearestTrioVC2 == null) {
+			return multiplyConfidence(vc1, vc2).confidence();
+		}
 		
 		System.out.println("---");
 		System.out.println(nearestTrioVC1.toStringDecodeGenotypes());
@@ -219,11 +224,6 @@ public class HaplotypeBlock {
 		System.out.println(nearestTrioVC2.toStringDecodeGenotypes());
 		System.out.println(vc2.toStringDecodeGenotypes());
 		System.out.println("---");
-
-		// No trio info available
-		if (nearestTrioVC1 == null || nearestTrioVC2 == null) {
-			return multiplyConfidence(vc1, vc2).confidence();
-		}
 		
 		// Get final product confidence score using trio
 		ConfidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
