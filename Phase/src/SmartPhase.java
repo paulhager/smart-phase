@@ -706,8 +706,8 @@ public class SmartPhase {
 		ArrayList<VariantContext> trimPosVarsInRead;
 		Set<VariantContext> key;
 
-		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
-		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
+		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
 
 		HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
 
@@ -815,14 +815,14 @@ public class SmartPhase {
 							if ((!delVar || del) && (!insertVar || insert)) {
 								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 									if (varEx1Seen) {
-										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
+										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
 												Phase.CIS);
 									} else {
-										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
+										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
 												Phase.TRANS);
 									}
 								} else if (varEx1Seen) {
-									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
 											Phase.TRANS);
 								}
 							}
@@ -835,8 +835,8 @@ public class SmartPhase {
 				}
 
 				// Increase observed count
-				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
-				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
+				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.OBSERVED);
+				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd, Phase.OBSERVED);
 
 				// Check alternative allele co-occurence on read
 				if ((!delVar || del) && (!insertVar || insert)) {
@@ -847,18 +847,18 @@ public class SmartPhase {
 						seenInRead.add(v);
 						// Increase CIS counter for all also found with this
 						// read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.CIS);
 
 						// Increase TRANS counter for all examined and NOT
 						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
+						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 					} else {
 
 						NOT_SeenInRead.add(v);
 
 						// Increase TRANS counter for all examined and
 						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 					}
 				} else {
 					NOT_SeenInRead.add(v);
@@ -959,11 +959,11 @@ public class SmartPhase {
 			key.add(secondVar);
 			key.add(firstVar);
 
-			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
-					0);
+					0.0);
 			observedCounter = phaseCounter.getOrDefault(
-					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Double.MAX_VALUE);
 
 			key = new HashSet<VariantContext>();
 			double confidence = Math
@@ -1045,9 +1045,9 @@ public class SmartPhase {
 				key.add(secondVar);
 				key.add(endOfFirstExon);
 				cisCounter = skipIntronCounter
-						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
 				transCounter = skipIntronCounter
-						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0);
+						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0.0);
 				if (cisCounter > transCounter) {
 					for (HaplotypeBlock hb : intervalBlocks) {
 						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
@@ -1074,7 +1074,7 @@ public class SmartPhase {
 									hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 									ex1Strand, -2);
 							intervalBlocks.set(origIndex, hb);
-						}
+					}
 					}
 				}
 
@@ -1087,15 +1087,35 @@ public class SmartPhase {
 		return intervalBlocks;
 	}
 
-	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> updatePhaseCounter(
-			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter,
-			ArrayList<VariantContext> group, VariantContext v, Phase phase) {
+	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
+			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter,
+			ArrayList<VariantContext> group, VariantContext v, SAMRecord r, int subStrStart, int subStrEnd, Phase phase) {
+		// One subtracted as we are working now with indexes and not substrings
+		subStrEnd = subStrEnd-1;
+		byte[] baseQualities = r.getBaseQualities();
+		double averageQuality = 1.0;
+		if(!r.getBaseQualityString().equals("*")){
+			if(baseQualities.length != r.getReadLength()){
+				System.err.println("Base qualities array and read length not equal");
+			}
+			
+			averageQuality = 0;
+			for(int currentBase = subStrStart; currentBase <= subStrEnd; currentBase++){
+				double miscallProb = Math.pow(10, Double.valueOf(baseQualities[currentBase])/-10);
+				averageQuality += miscallProb;
+			}
+			// Take average and then change from prob. error to prob. correct
+			averageQuality = averageQuality/(subStrEnd+1-subStrStart);
+			averageQuality = 1.0 - averageQuality;
+		}
+		final double finalAverageQuality = averageQuality;
+		System.out.println(finalAverageQuality);
 		for (VariantContext member : group) {
 			HashSet<VariantContext> key = new HashSet<VariantContext>();
 			key.add(v);
 			key.add(member);
 			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
-					(k, val) -> (val == null) ? 1 : val + 1);
+					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);
 		}
 		return phaseCounter;
 	}
