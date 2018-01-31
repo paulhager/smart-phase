@@ -46,7 +46,7 @@ import picard.pedigree.PedFile;
 public class SmartPhase {
 
 	public enum Phase {
-		CIS, TRANS, CIS_OBSERVED, TRANS_OBSERVED, TOTAL_OBSERVED
+		CIS, TRANS, TOTAL_OBSERVED
 	}
 
 	// static SAMRecordIterator samIterator;
@@ -819,14 +819,14 @@ public class SmartPhase {
 								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 									if (varEx1Seen) {
 										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
-												Phase.CIS, Phase.CIS_OBSERVED);
+												Phase.CIS);
 									} else {
 										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
-												Phase.TRANS, Phase.TRANS_OBSERVED);
+												Phase.TRANS);
 									}
 								} else if (varEx1Seen) {
 									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart, subStrEnd,
-											Phase.TRANS, Phase.TRANS_OBSERVED);
+											Phase.TRANS);
 								}
 							}
 							varExon2 = v;
@@ -838,8 +838,8 @@ public class SmartPhase {
 				}
 
 				// Increase observed count
-				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED, Phase.TOTAL_OBSERVED);
-				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED, Phase.TOTAL_OBSERVED);
+				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
+				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
 
 				// Check alternative allele co-occurence on read
 				if ((!delVar || del) && (!insertVar || insert)) {
@@ -850,18 +850,18 @@ public class SmartPhase {
 						seenInRead.add(v);
 						// Increase CIS counter for all also found with this
 						// read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.CIS, Phase.CIS_OBSERVED);
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.CIS);
 
 						// Increase TRANS counter for all examined and NOT
 						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS, Phase.TRANS_OBSERVED);
+						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 					} else {
 
 						NOT_SeenInRead.add(v);
 
 						// Increase TRANS counter for all examined and
 						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS, Phase.TRANS_OBSERVED);
+						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 					}
 				} else {
 					NOT_SeenInRead.add(v);
@@ -894,11 +894,7 @@ public class SmartPhase {
 
 		double cisCounter;
 		double transCounter;
-		double observedCisCounter;
-		double observedTransCounter;
 		double observedCounter;
-		double cisConfidence;
-		double transConfidence;
 		
 
 		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
@@ -972,28 +968,6 @@ public class SmartPhase {
 					0.0);
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
-			
-			observedCisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS_OBSERVED), Double.MAX_VALUE);
-			observedTransCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS_OBSERVED), Double.MAX_VALUE);
-						
-			// Calc average
-			cisConfidence = cisCounter/observedCisCounter;
-			transConfidence = transCounter/observedTransCounter;
-			//System.out.println("C-Conf: "+cisConfidence);
-			//System.out.println("T-conf: "+transConfidence);
-			//System.out.println("");
-			
-			if(cisCounter == transCounter && transCounter != 0.0){
-				System.err.println("CCount = TTount");
-				System.out.println("C-Count: "+cisCounter);
-				
-			}
-			if(cisConfidence == transConfidence && transConfidence != 0.0){
-				System.err.println("CConf = TConf");
-				System.out.println("C-Conf: "+cisConfidence);
-				System.out.println("T-conf: "+transConfidence);
-				System.out.println("");
-			}
 
 			key = new HashSet<VariantContext>();
 			double confidence = Math
@@ -1119,7 +1093,7 @@ public class SmartPhase {
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
 			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter,
-			ArrayList<VariantContext> group, VariantContext v, SAMRecord r, int subStrStart, int subStrEnd, Phase phase, Phase phaseCount) {
+			ArrayList<VariantContext> group, VariantContext v, SAMRecord r, int subStrStart, int subStrEnd, Phase phase) {
 		// One subtracted as we are working now with indexes and not substrings
 		subStrEnd = subStrEnd-1;
 		byte[] baseQualities = r.getBaseQualities();
@@ -1146,10 +1120,6 @@ public class SmartPhase {
 			key.add(member);
 			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
 					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);
-			if(!phaseCount.name().equals(phase.name())){
-				phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phaseCount),
-						(k, val) -> (val == null) ? 1.0 : val + 1.0);				
-			}
 		}
 		return phaseCounter;
 	}
