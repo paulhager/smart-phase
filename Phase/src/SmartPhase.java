@@ -841,7 +841,7 @@ public class SmartPhase {
 				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
 				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
 
-				// Check alternative allele co-occurence on read
+				// Check alternative allele co-occurence on read 
 				if ((!delVar || del) && (!insertVar || insert)) {
 
 					// Variant is found in read
