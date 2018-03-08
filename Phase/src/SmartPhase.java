@@ -1461,6 +1461,7 @@ public class SmartPhase {
 			return currentBlocks;
 		}
 		int mergeBlockCntr = 2;
+		varsLoop:
 		for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
@@ -1471,6 +1472,7 @@ public class SmartPhase {
 			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
 				curBlock = hapBlockIt.next();
 			}
+			
 			// Check if current trio var lands in current block. If yes, merge
 			while (curBlock.setPhased(trioVar)) {
 
@@ -1482,7 +1484,7 @@ public class SmartPhase {
 						hapBlockIt.remove();
 						curBlock = hapBlockIt.next();
 					} else {
-						break;
+						break varsLoop;
 					}
 					continue;
 				}
@@ -1517,7 +1519,7 @@ public class SmartPhase {
 					hapBlockIt.remove();
 					curBlock = hapBlockIt.next();
 				} else {
-					break;
+					break varsLoop;
 				}
 			}
 		}
