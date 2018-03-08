@@ -934,6 +934,7 @@ public class SmartPhase {
 					.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
+			
 			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
@@ -972,37 +973,46 @@ public class SmartPhase {
 				confidence = Math
 						.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 				
-				for (HaplotypeBlock hb : intervalBlocks) {
-					HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
-					if (ex1Strand != null) {
-						// Replace variant with one with a reference to link for confidence calculations later
-						VariantContext linkingVariant = new VariantContextBuilder(newVar).attribute("linkedPreceding", hb.getSimVC(endOfFirstExon)).attribute("linkedConfidence", confidence).make();
-						newVar = hapBlock.getSimVC(newVar);
-						hapBlock.replaceVariant(linkingVariant, newVar, hapBlock.getStrand(newVar));
-						globalRNAseqCount++;
-						
-						if (cisCounter > transCounter) {
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
-									ex1Strand, -2);
-							hb.addVariantsMerge(
-									hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-									hb.getOppStrand(ex1Strand), -2);							
-						} else if (transCounter > cisCounter) {
-							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
-									hb.getOppStrand(ex1Strand), -2);
-							hb.addVariantsMerge(
-									hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-									ex1Strand, -2);							
-						}	
-						hapBlock = hb;
+				if(cisCounter != transCounter){
+					for (HaplotypeBlock hb : intervalBlocks) {
+						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
+						if (ex1Strand != null) {
+							// Replace variant with one with a reference to link for confidence calculations later
+							VariantContext linkingVariant = new VariantContextBuilder(newVar).attribute("linkedPreceding", hb.getSimVC(endOfFirstExon)).attribute("linkedConfidence", confidence).make();
+							newVar = hapBlock.getSimVC(newVar);
+							hapBlock.replaceVariant(linkingVariant, newVar, hapBlock.getStrand(newVar));
+							globalRNAseqCount++;
+							
+							int newMergeBlock = (int) hb.getSimVC(endOfFirstExon).getAttribute("mergedBlocks");
+							newMergeBlock++;
+							
+							if (cisCounter > transCounter) {
+								hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
+										ex1Strand, newMergeBlock);
+								hb.addVariantsMerge(
+										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
+										hb.getOppStrand(ex1Strand), newMergeBlock);			
+								hapBlock = hb;
+							} else if (transCounter > cisCounter) {
+								hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
+										hb.getOppStrand(ex1Strand), newMergeBlock);
+								hb.addVariantsMerge(
+										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
+										ex1Strand, newMergeBlock);							
+								hapBlock = hb;
+							}	
+						}
 					}
 				}
+				
 			}
 			
 			HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
 			if(returnedBlock != null){
 				hapBlock = returnedBlock;
 			}
+			
+			
 		}
 		intervalBlocks.add(hapBlock);
 
@@ -1012,7 +1022,7 @@ public class SmartPhase {
 	}
 	
 	// Merge blocks if variant is part of read pair
-	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock, ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar){
+	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock, ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar) throws Exception{
 		if(pairedReadsVarMaps.containsKey(secondVar)){
 			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
 			for(HaplotypeBlock hb : intervalBlocks){
@@ -1032,22 +1042,26 @@ public class SmartPhase {
 					
 					// Replace variant with one with a reference to link for confidence calculations later
 					VariantContext linkingVariant = new VariantContextBuilder(oldVar).attribute("linkedPreceding", hb.getSimVC(connectionVar)).attribute("linkedConfidence", confidence).make();
+					int newMergeBlock = (int) hb.getSimVC(connectionVar).getAttribute("mergedBlocks");
+					newMergeBlock++;
 					oldVar = hapBlock.getSimVC(oldVar);
-					hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
+					
 					if(cisCounter > transCounter){
+						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
-								conVarStrand, -2);
+								conVarStrand, newMergeBlock);
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-								hb.getOppStrand(conVarStrand), -2);
+								hb.getOppStrand(conVarStrand), newMergeBlock);
 						System.out.println("cis");
 						return hb;
 					} else if (transCounter > cisCounter){
+						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
-								hb.getOppStrand(conVarStrand), -2);
+								hb.getOppStrand(conVarStrand), newMergeBlock);
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-								conVarStrand, -2);
+								conVarStrand, newMergeBlock);
 						System.out.println("trans");
 						return hb;
 					} else {
