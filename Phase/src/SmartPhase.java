@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -53,15 +54,22 @@ public class SmartPhase {
 	static ArrayList<SAMRecord> curRecords = new ArrayList<SAMRecord>();
 	static ArrayList<SAMRecordIterator> samIteratorList = new ArrayList<SAMRecordIterator>();
 	static HashMap<SAMRecordIterator, SAMRecord> grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
+	static HashMap<String, ArrayList<SAMRecord>> pairedEndReads = new HashMap<String, ArrayList<SAMRecord>>();
 	static SAMRecord curRec = null;
 	static File[] inputREADFILES = null;
 	static String prevContig = "";
 	static double[] minMAPQ;
 
+	static ArrayList<VariantContext> seenInRead;
+	static ArrayList<VariantContext> NOT_SeenInRead;
+
+	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter;
+	static HashMap<VariantContext, VariantContext> pairedReadsVarMaps = new HashMap<VariantContext, VariantContext>();
+
 	static String PATIENT_ID;
 
-	static boolean TRIO;
-	static boolean READS;
+	static boolean TRIO = false;
+	static boolean READS = false;
 
 	// Statistics
 	static int denovoCounter = 0;
@@ -74,6 +82,13 @@ public class SmartPhase {
 	static int globalNewBlock = 0;
 	static int globalContradiction = 0;
 	static int globalRNAseqCount = 0;
+
+	static HashMap<String, ArrayList<VariantContext>> physicalPhasingMap = new HashMap<String, ArrayList<VariantContext>>();
+	static HashMap<VariantContext, String> physicalPhasingPIDMap = new HashMap<VariantContext, String>();
+
+	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+
+	static HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
 
 	public static void main(String[] args) throws Exception {
 		// Parse Options
@@ -115,9 +130,6 @@ public class SmartPhase {
 			TRIO = true;
 			inputPEDIGREE = new File(cmd.getOptionValue("d"));
 			familyPed = PedFile.fromFile(inputPEDIGREE, true);
-		} else {
-			TRIO = false;
-			inputPEDIGREE = null;
 		}
 
 		if (cmd.hasOption("c")) {
@@ -487,7 +499,7 @@ public class SmartPhase {
 						for (int i = flagBits.nextSetBit(0); i >= 0; i = flagBits.nextSetBit(i + 1)) {
 							flag += (1 << i);
 						}
-						
+
 						// Calc total number of reads spanning both variants
 						int spanningReads = countReads(curInterval, innerVariant, outerVariant);
 
@@ -561,7 +573,7 @@ public class SmartPhase {
 
 	private static int countReads(Interval interval, VariantContext vc1, VariantContext vc2) {
 		int count = 0;
-				
+
 		if (READS) {
 			SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
 					.validationStringency(ValidationStringency.SILENT);
@@ -571,21 +583,23 @@ public class SmartPhase {
 			for (File inputReadsFile : inputREADFILES) {
 				samReader = samReaderFactory.open(inputReadsFile);
 				Set<SAMRecord> srSet1 = new HashSet<SAMRecord>();
-				SAMRecordIterator readIt1 = samReader.queryOverlapping(interval.getContig(), vc1.getStart(), vc1.getEnd());
-				while(readIt1.hasNext()){
+				SAMRecordIterator readIt1 = samReader.queryOverlapping(interval.getContig(), vc1.getStart(),
+						vc1.getEnd());
+				while (readIt1.hasNext()) {
 					srSet1.add(readIt1.next());
 				}
 				readIt1.close();
-				
+
 				Set<SAMRecord> srSet2 = new HashSet<SAMRecord>();
-				SAMRecordIterator readIt2 = samReader.queryOverlapping(interval.getContig(), vc2.getStart(), vc2.getEnd());
-				while(readIt2.hasNext()){
+				SAMRecordIterator readIt2 = samReader.queryOverlapping(interval.getContig(), vc2.getStart(),
+						vc2.getEnd());
+				while (readIt2.hasNext()) {
 					srSet2.add(readIt2.next());
 				}
 				readIt2.close();
-				
+
 				srSet1.retainAll(srSet2);
-				
+
 				double minQ = minMAPQ[indx];
 				indx++;
 
@@ -596,8 +610,7 @@ public class SmartPhase {
 					if (curRecord.getReadUnmappedFlag() || curRecord.getMappingQuality() < minQ
 							|| (curRecord.getReadPairedFlag() && !curRecord.getProperPairFlag())
 							|| curRecord.getDuplicateReadFlag() || curRecord.getNotPrimaryAlignmentFlag()
-							|| curRecord.getStart() > vc1.getStart()
-							|| curRecord.getEnd() < vc2.getEnd()) {
+							|| curRecord.getStart() > vc1.getStart() || curRecord.getEnd() < vc2.getEnd()) {
 						continue;
 					}
 					count++;
@@ -644,11 +657,20 @@ public class SmartPhase {
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
 						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
 						|| curRec.getNotPrimaryAlignmentFlag()) {
-
 					continue;
 				}
 
 				if (curRec.getEnd() >= intervalStart) {
+					if (curRec.getReadPairedFlag()) {
+						if (!pairedEndReads.containsKey(curRec.getReadName())) {
+							pairedEndReads.put(curRec.getReadName(), null);
+						} else {
+							ArrayList<SAMRecord> allPairedRecords = (pairedEndReads.get(curRec.getReadName()) == null)
+									? new ArrayList<SAMRecord>() : pairedEndReads.get(curRec.getReadName());
+							allPairedRecords.add(curRec);
+							pairedEndReads.put(curRec.getReadName(), allPairedRecords);
+						}
+					}
 					curRecords.add(curRec);
 				}
 
@@ -703,179 +725,64 @@ public class SmartPhase {
 			ArrayList<SAMRecord> trimmedRecords, Interval curInterval, ArrayList<VariantContext> trioVars)
 			throws Exception {
 
-		ArrayList<VariantContext> trimPosVarsInRead;
 		Set<VariantContext> key;
 
-		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
-		HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+		phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+		skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
 
-		HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
+		exonStartVars = new HashMap<VariantContext, VariantContext>();
 
 		for (SAMRecord r : trimmedRecords) {
-
-			// Calculate end of first exon and start of second to find vars at
-			// edges for RNAseq data
-			int exon1End = 0;
-			int exon2Start = 0;
-			VariantContext varExon1 = null;
-			VariantContext varExon2 = null;
-			Cigar curCigar = r.getCigar();
-			if (curCigar.containsOperator(CigarOperator.N)) {
-				for (CigarElement ce : curCigar.getCigarElements()) {
-					if (ce.getOperator().equals(CigarOperator.N)) {
-						exon2Start = exon1End + ce.getLength();
-						break;
+			seenInRead = new ArrayList<VariantContext>();
+			NOT_SeenInRead = new ArrayList<VariantContext>();
+			// More than one paired end read found
+			if (pairedEndReads.containsKey(r.getReadName()) && pairedEndReads.get(r.getReadName()) != null) {
+				ArrayList<SAMRecord> allPairedRecords = pairedEndReads.get(r.getReadName());
+				// Ensure that each paired end read is only examined once
+				if (!allPairedRecords.contains(r)) {
+					// Grab one random variant from each read to create the
+					// links for merging down the road
+					ArrayList<VariantContext> randomVars = new ArrayList<VariantContext>();
+					VariantContext ranVar;
+					ranVar = countEvidence(r, variantsToPhase);
+					if (ranVar != null) {
+						randomVars.add(ranVar);
 					}
-					if (ce.getOperator().consumesReferenceBases()) {
-						exon1End += ce.getLength();
-					}
-				}
-			}
-			trimPosVarsInRead = new ArrayList<VariantContext>(variantsToPhase);
-
-			trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
-
-			// Read covers less than 2 variants and is thus not of interest.
-			if (trimPosVarsInRead.size() < 2) {
-				continue;
-			}
-
-			ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
-			ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
-
-			boolean varEx1Seen = false;
-			ArrayList<VariantContext> exVarList = new ArrayList<VariantContext>();
-			for (VariantContext v : trimPosVarsInRead) {
-
-				Genotype patGT = v.getGenotype(PATIENT_ID);
-
-				// Ensure file is normalized
-				if (v.getNAlleles() > 2) {
-					throw new Exception("Only normalized vcf files are allowed.");
-				}
-
-				// Check if deletion is on this read and if variant is deletion
-				// variant
-				boolean del = (r.getReadPositionAtReferencePosition(v.getEnd(), false) == 0) ? true : false;
-				boolean delVar = (v.isSimpleDeletion()) ? true : false;
-
-				// Determine if insert
-				boolean insertVar = (v.isSimpleInsertion()) ? true : false;
-				boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + 1,
-						false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
-
-				Allele allele = patGT.getAllele(1);
-				if (!allele.isNonReference()) {
-					throw new Error("Only normalized vcf files are allowed.");
-				}
-				// Calculate correct position in read to be compared to
-				// alternative alleles in variant
-				int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
-				int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
-
-				// Disregard variants who start in the middle of deletions
-				// as
-				// these aren't called correctly.
-				if (subStrStart == -1 || subStrEnd == 0) {
-					continue;
-				}
-
-				if (insert && insertVar) {
-					subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
-					if (subStrEnd == -1) {
-						continue;
-					}
-				}
-
-				// Determine variants closest to intron
-				if (exon1End != 0 && exon2Start != 0) {
-					if (subStrStart < exon1End) {
-						if (varExon1 == null) {
-							varExon1 = v;
-							if ((!delVar || del) && (!insertVar || insert)) {
-								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-									varEx1Seen = true;
-								}
-							}
-							exVarList.clear();
-							exVarList.add(varExon1);
-						} else if (varExon1.getStart() < subStrStart) {
-							varEx1Seen = false;
-							if ((!delVar || del) && (!insertVar || insert)) {
-								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-									varEx1Seen = true;
-								}
-							}
-							varExon1 = v;
-							exVarList.clear();
-							exVarList.add(varExon1);
-						}
-					} else if (v.getStart() > exon2Start + r.getAlignmentStart() && varExon1 != null) {
-						if (varExon2 == null) {
-							if ((!delVar || del) && (!insertVar || insert)) {
-								if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-									if (varEx1Seen) {
-										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
-												Phase.CIS);
-									} else {
-										skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
-												Phase.TRANS);
-									}
-								} else if (varEx1Seen) {
-									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
-											Phase.TRANS);
-								}
-							}
-							varExon2 = v;
-							exonStartVars.put(v, varExon1);
-						} else if (varExon2.getStart() > v.getStart()) {
-							System.err.println("START DECREASED");
+					for (SAMRecord pairedRecord : allPairedRecords) {
+						ranVar = countEvidence(pairedRecord, variantsToPhase);
+						if (ranVar != null) {
+							randomVars.add(ranVar);
 						}
 					}
-				}
-
-				// Increase observed count
-				phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
-				phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
-
-				// Check alternative allele co-occurence on read
-				if ((!delVar || del) && (!insertVar || insert)) {
-
-					// Variant is found in read
-					if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-
-						seenInRead.add(v);
-						// Increase CIS counter for all also found with this
-						// read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
-
-						// Increase TRANS counter for all examined and NOT
-						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
-					} else {
-
-						NOT_SeenInRead.add(v);
-
-						// Increase TRANS counter for all examined and
-						// found on this read
-						phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
+					// Sort random vars according to descending start and
+					// populate hashmap
+					Collections.sort(randomVars, new Comparator<VariantContext>() {
+						@Override
+						public int compare(VariantContext var2, VariantContext var1) {
+							return var1.getStart() - var2.getStart();
+						}
+					});
+					VariantContext prevVar = null;
+					for (VariantContext var : randomVars) {
+						if (prevVar != null && prevVar != var) {
+							pairedReadsVarMaps.put(prevVar, var);
+						}
+						prevVar = var;
 					}
-				} else {
-					NOT_SeenInRead.add(v);
 				}
+			} else {
+				countEvidence(r, variantsToPhase);
 			}
 		}
-		trimPosVarsInRead = null;
 		trimmedRecords = null;
 
 		// No reads found spanning two vars. Creating new HB for each variant so
-		// thex can be trio phased
+		// they can be trio phased
 		if (phaseCounter.size() == 0) {
 			// No reads found, so create new HB for each read so at least trio
 			// phasing can be done
 			ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
 			for (VariantContext vc : variantsToPhase) {
-
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
 				HaplotypeBlock hapBlock = new HaplotypeBlock(PATIENT_ID);
@@ -892,6 +799,7 @@ public class SmartPhase {
 		double cisCounter;
 		double transCounter;
 		double observedCounter;
+		double confidence;
 
 		ArrayList<HaplotypeBlock> intervalBlocks = new ArrayList<HaplotypeBlock>();
 
@@ -965,8 +873,8 @@ public class SmartPhase {
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
 
-			key = new HashSet<VariantContext>();
-			double confidence = Math
+			
+			confidence = Math
 					.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
 			// Check if trio info contradicts cis/trans counters
@@ -981,7 +889,7 @@ public class SmartPhase {
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
 					// Contradiction
-					if (transCounter > cisCounter) {
+					if (transCounter >= cisCounter) {
 						// Trio has better confidence
 						if (trioConf > confidence) {
 							globalContradiction++;
@@ -991,6 +899,10 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
+							if(returnedBlock != null){
+								hapBlock = returnedBlock;
+							}
 							continue;
 						}
 					}
@@ -998,7 +910,7 @@ public class SmartPhase {
 				// TRANS
 				else {
 					// Contradiction
-					if (cisCounter > transCounter) {
+					if (cisCounter >= transCounter) {
 						// Trio has better confidence
 						if (trioConf > confidence) {
 							globalContradiction++;
@@ -1008,6 +920,10 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
+							if(returnedBlock != null){
+								hapBlock = returnedBlock;
+							}
 							continue;
 						}
 					}
@@ -1032,52 +948,60 @@ public class SmartPhase {
 				// Cannot phase. Open new haplotypeBlock
 				intervalBlocks.add(hapBlock);
 				hapBlock = new HaplotypeBlock(PATIENT_ID);
-				VariantContext newVarNewBlock = new VariantContextBuilder(secondVar).genotypes(
+				newVar = new VariantContextBuilder(secondVar).genotypes(
 						new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID)).attribute("ReadConfidence", 1.0).make())
 						.attribute("Preceding", null).make();
-				hapBlock.addVariant(newVarNewBlock, HaplotypeBlock.Strand.STRAND1);
+				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
 			}
 
 			// SecondVar is start of another exon. Check if can merge with other
 			// block
 			if (exonStartVars.containsKey(secondVar)) {
 				VariantContext endOfFirstExon = exonStartVars.get(secondVar);
+				key = new HashSet<VariantContext>();
 				key.add(secondVar);
 				key.add(endOfFirstExon);
 				cisCounter = skipIntronCounter
 						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
 				transCounter = skipIntronCounter
 						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0);
-				if (cisCounter > transCounter) {
-					for (HaplotypeBlock hb : intervalBlocks) {
-						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
-						if (ex1Strand != null) {
-							globalRNAseqCount++;
-							int origIndex = intervalBlocks.indexOf(hb);
+				
+				observedCounter = phaseCounter.getOrDefault(
+						new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+
+				confidence = Math
+						.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+				
+				for (HaplotypeBlock hb : intervalBlocks) {
+					HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
+					if (ex1Strand != null) {
+						// Replace variant with one with a reference to link for confidence calculations later
+						VariantContext linkingVariant = new VariantContextBuilder(newVar).attribute("linkedPreceding", hb.getSimVC(endOfFirstExon)).attribute("linkedConfidence", confidence).make();
+						newVar = hapBlock.getSimVC(newVar);
+						hapBlock.replaceVariant(linkingVariant, newVar, hapBlock.getStrand(newVar));
+						globalRNAseqCount++;
+						
+						if (cisCounter > transCounter) {
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 									ex1Strand, -2);
 							hb.addVariantsMerge(
 									hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-									hb.getOppStrand(ex1Strand), -2);
-							intervalBlocks.set(origIndex, hb);
-						}
-					}
-				} else if (transCounter > cisCounter) {
-					for (HaplotypeBlock hb : intervalBlocks) {
-						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
-						if (ex1Strand != null) {
-							globalRNAseqCount++;
-							int origIndex = intervalBlocks.indexOf(hb);
+									hb.getOppStrand(ex1Strand), -2);							
+						} else if (transCounter > cisCounter) {
 							hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 									hb.getOppStrand(ex1Strand), -2);
 							hb.addVariantsMerge(
 									hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-									ex1Strand, -2);
-							intervalBlocks.set(origIndex, hb);
-						}
+									ex1Strand, -2);							
+						}	
+						hapBlock = hb;
 					}
 				}
-
+			}
+			
+			HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
+			if(returnedBlock != null){
+				hapBlock = returnedBlock;
 			}
 		}
 		intervalBlocks.add(hapBlock);
@@ -1085,6 +1009,209 @@ public class SmartPhase {
 		// TODO: Remove inefficiencies created by calculating/storing values
 		// twice for overlapping intervals.
 		return intervalBlocks;
+	}
+	
+	// Merge blocks if variant is part of read pair
+	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock, ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar){
+		if(pairedReadsVarMaps.containsKey(secondVar)){
+			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
+			for(HaplotypeBlock hb : intervalBlocks){
+				HaplotypeBlock.Strand conVarStrand = hb.getStrandSimVC(connectionVar);
+				if(conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null){
+					HashSet<VariantContext> key = new HashSet<VariantContext>();
+					key.add(secondVar);
+					key.add(connectionVar);
+					double cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+					double transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0);
+					System.out.println(cisCounter);
+					System.out.println(transCounter);
+					double observedCounter = phaseCounter.getOrDefault(
+							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+					double confidence = Math
+							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+					
+					// Replace variant with one with a reference to link for confidence calculations later
+					VariantContext linkingVariant = new VariantContextBuilder(oldVar).attribute("linkedPreceding", hb.getSimVC(connectionVar)).attribute("linkedConfidence", confidence).make();
+					oldVar = hapBlock.getSimVC(oldVar);
+					hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
+					if(cisCounter > transCounter){
+						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
+								conVarStrand, -2);
+						hb.addVariantsMerge(
+								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
+								hb.getOppStrand(conVarStrand), -2);
+						System.out.println("cis");
+						return hb;
+					} else if (transCounter > cisCounter){
+						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
+								hb.getOppStrand(conVarStrand), -2);
+						hb.addVariantsMerge(
+								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
+								conVarStrand, -2);
+						System.out.println("trans");
+						return hb;
+					} else {
+						System.out.println("WHATTTT");
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private static VariantContext countEvidence(SAMRecord r, ArrayList<VariantContext> variantsToPhase)
+			throws Exception {
+		// Calculate end of first exon and start of second to find vars at
+		// edges for RNAseq data
+		int exon1End = 0;
+		int exon2Start = 0;
+		VariantContext varExon1 = null;
+		VariantContext varExon2 = null;
+		Cigar curCigar = r.getCigar();
+		if (curCigar.containsOperator(CigarOperator.N)) {
+			for (CigarElement ce : curCigar.getCigarElements()) {
+				if (ce.getOperator().equals(CigarOperator.N)) {
+					exon2Start = exon1End + ce.getLength();
+					break;
+				}
+				if (ce.getOperator().consumesReferenceBases()) {
+					exon1End += ce.getLength();
+				}
+			}
+		}
+		ArrayList<VariantContext> trimPosVarsInRead = new ArrayList<VariantContext>(variantsToPhase);
+
+		trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
+
+		/*
+		 * // Read covers less than 2 variants and is thus not of interest. OLD.
+		 * Because of paired end reads, a single variant can still technically
+		 * be of use if (trimPosVarsInRead.size() < 2) { continue; }
+		 */
+		if (trimPosVarsInRead.size() < 1) {
+			return null;
+		}
+
+		boolean varEx1Seen = false;
+		ArrayList<VariantContext> exVarList = new ArrayList<VariantContext>();
+		for (VariantContext v : trimPosVarsInRead) {
+
+			Genotype patGT = v.getGenotype(PATIENT_ID);
+
+			// Ensure file is normalized
+			if (v.getNAlleles() > 2) {
+				throw new Exception("Only normalized vcf files are allowed.");
+			}
+
+			// Check if deletion is on this read and if variant is deletion
+			// variant
+			boolean del = (r.getReadPositionAtReferencePosition(v.getEnd(), false) == 0) ? true : false;
+			boolean delVar = (v.isSimpleDeletion()) ? true : false;
+
+			// Determine if insert
+			boolean insertVar = (v.isSimpleInsertion()) ? true : false;
+			boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + 1,
+					false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
+
+			Allele allele = patGT.getAllele(1);
+			if (!allele.isNonReference()) {
+				throw new Error("Only normalized vcf files are allowed.");
+			}
+			// Calculate correct position in read to be compared to
+			// alternative alleles in variant
+			int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
+			int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
+
+			// Disregard variants who start in the middle of deletions
+			// as
+			// these aren't called correctly.
+			if (subStrStart == -1 || subStrEnd == 0) {
+				continue;
+			}
+
+			if (insert && insertVar) {
+				subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
+				if (subStrEnd == -1) {
+					continue;
+				}
+			}
+
+			// Determine variants closest to intron
+			if (exon1End != 0 && exon2Start != 0) {
+				if (subStrStart < exon1End) {
+					if (varExon1 == null) {
+						varExon1 = v;
+						if ((!delVar || del) && (!insertVar || insert)) {
+							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								varEx1Seen = true;
+							}
+						}
+						exVarList.clear();
+						exVarList.add(varExon1);
+					} else if (varExon1.getStart() < subStrStart) {
+						varEx1Seen = false;
+						if ((!delVar || del) && (!insertVar || insert)) {
+							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								varEx1Seen = true;
+							}
+						}
+						varExon1 = v;
+						exVarList.clear();
+						exVarList.add(varExon1);
+					}
+				} else if (v.getStart() > exon2Start + r.getAlignmentStart() && varExon1 != null) {
+					if (varExon2 == null) {
+						if ((!delVar || del) && (!insertVar || insert)) {
+							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								if (varEx1Seen) {
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.CIS);
+								} else {
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
+											Phase.TRANS);
+								}
+							} else if (varEx1Seen) {
+								skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
+							}
+						}
+						varExon2 = v;
+						exonStartVars.put(v, varExon1);
+					} else if (varExon2.getStart() > v.getStart()) {
+						System.err.println("START DECREASED");
+					}
+				}
+			}
+
+			// Increase observed count
+			phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
+			phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
+
+			// Check alternative allele co-occurence on read
+			if ((!delVar || del) && (!insertVar || insert)) {
+
+				// Variant is found in read
+				if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+
+					seenInRead.add(v);
+					// Increase CIS counter for all also found with this
+					// read
+					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
+
+					// Increase TRANS counter for all examined and NOT
+					// found on this read
+					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
+				} else {
+
+					NOT_SeenInRead.add(v);
+
+					// Increase TRANS counter for all examined and
+					// found on this read
+					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
+				}
+			} else {
+				NOT_SeenInRead.add(v);
+			}
+		}
+		return trimPosVarsInRead.get(0);
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> updatePhaseCounter(
@@ -1102,6 +1229,7 @@ public class SmartPhase {
 
 	private static ArrayList<VariantContext> trioPhase(Iterator<VariantContext> inVariantsIterator, PedFile familyPed)
 			throws IOException {
+
 		// Read in .ped file and retrieve maternal/paternal IDs
 		String motherID = familyPed.get(PATIENT_ID).getMaternalId();
 		String fatherID = familyPed.get(PATIENT_ID).getPaternalId();
@@ -1110,6 +1238,7 @@ public class SmartPhase {
 		// Iterate over all variants in region and phase the patient's genotype
 		// whenever possible using trio information
 		while (inVariantsIterator.hasNext()) {
+
 			VariantContext var = inVariantsIterator.next();
 			Genotype patientGT = var.getGenotype(PATIENT_ID);
 
@@ -1120,6 +1249,17 @@ public class SmartPhase {
 				outVariants.add(vc);
 				vc = null;
 				continue;
+			}
+
+			// Analyse PID and PGT
+			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
+				String PID = (String) patientGT.getAnyAttribute("PID");
+				// String PGT = (String) patientGT.getAnyAttribute("PGT");
+				ArrayList<VariantContext> currentVarList = physicalPhasingMap.getOrDefault(PID,
+						new ArrayList<VariantContext>());
+				currentVarList.add(var);
+				physicalPhasingMap.put(PID, currentVarList);
+				physicalPhasingPIDMap.put(var, PID);
 			}
 
 			// RESULTS
@@ -1272,7 +1412,6 @@ public class SmartPhase {
 		} else {
 			return currentBlocks;
 		}
-
 		int mergeBlockCntr = 2;
 		for (VariantContext trioVar : trioPhasedVars) {
 
@@ -1285,14 +1424,18 @@ public class SmartPhase {
 				curBlock = hapBlockIt.next();
 			}
 			// Check if current trio var lands in current block. If yes, merge
-			while (curBlock.setPhased(trioVar) && hapBlockIt.hasNext()) {
+			while (curBlock.setPhased(trioVar)) {
 
 				// Initialize mergeblock to first block containing trio var
 				if (mergeBlock == null) {
 					mergeBlock = curBlock;
 					prevTrioVar = trioVar;
-					hapBlockIt.remove();
-					curBlock = hapBlockIt.next();
+					if (hapBlockIt.hasNext()) {
+						hapBlockIt.remove();
+						curBlock = hapBlockIt.next();
+					} else {
+						break;
+					}
 					continue;
 				}
 
@@ -1322,8 +1465,12 @@ public class SmartPhase {
 
 				mergeBlockCntr++;
 				prevTrioVar = trioVar;
-				hapBlockIt.remove();
-				curBlock = hapBlockIt.next();
+				if (hapBlockIt.hasNext()) {
+					hapBlockIt.remove();
+					curBlock = hapBlockIt.next();
+				} else {
+					break;
+				}
 			}
 		}
 		if (mergeBlock != null) {

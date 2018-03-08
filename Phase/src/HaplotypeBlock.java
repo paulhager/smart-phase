@@ -48,14 +48,14 @@ public class HaplotypeBlock {
 			blockEnd = vc.getEnd();
 		}
 	}
-	
+
 	/**
 	 * Adds variant to specified strand and replace existing variant
 	 * 
 	 * @param vc
 	 *            - Variant to add
 	 * @param toBeReplaced
-	 * 			  - Variant to be replaced
+	 *            - Variant to be replaced
 	 * @param s
 	 *            - Strand to add to
 	 */
@@ -74,7 +74,7 @@ public class HaplotypeBlock {
 	public void addVariantsMerge(ArrayList<VariantContext> vcList, Strand s, int mergeBlockCntr) {
 
 		for (VariantContext vc : vcList) {
-			
+
 			vc = new VariantContextBuilder(vc).attribute("mergedBlocks", mergeBlockCntr).make();
 			strandVariants.get(s).add(vc);
 
@@ -136,33 +136,44 @@ public class HaplotypeBlock {
 	 * @return Strand
 	 */
 	public Strand getStrandSimVC(VariantContext vc) {
-		
+
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
+					&& posVC.getReference().equals(vc.getReference())
+					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND1;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
+					&& posVC.getReference().equals(vc.getReference())
+					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND2;
 			}
 		}
 		return null;
 	}
-	
+
 	/**
 	 * Grabs saved variantContext with just start position
-	 * @param vc - VariantContext with same start position as the one in block to be grabbed
+	 * 
+	 * @param vc
+	 *            - VariantContext with same start position as the one in block
+	 *            to be grabbed
 	 * @return VariantContext
 	 */
-	public VariantContext getSimVC(VariantContext vc){
+	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
+					&& posVC.getReference().equals(vc.getReference())
+					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig()) && posVC.getReference().equals(vc.getReference()) && posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
+			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
+					&& posVC.getReference().equals(vc.getReference())
+					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
 		}
@@ -217,24 +228,27 @@ public class HaplotypeBlock {
 		if (nearestTrioVC1 == null || nearestTrioVC2 == null) {
 			return multiplyConfidence(vc1, vc2).confidence();
 		}
-		
+
 		// Get final product confidence score using trio
 		ConfidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
-		cpTrio1.setConfidence(cpTrio1.confidence()*(double)nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
-		
+		cpTrio1.setConfidence(cpTrio1.confidence()
+				* (double) nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
+
 		ConfidencePair<Double, Integer> cpTrio2 = multiplyConfidence(vc2, nearestTrioVC2);
-		cpTrio1.setConfidence(cpTrio2.confidence()*(double)nearestTrioVC2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
-		
-		// Try to calculate confidence using only read conf. scores if both variants are in same mergeBlock. 
-		if(vc1.getAttributeAsInt("mergedBlocks", -1) == vc2.getAttributeAsInt("mergedBlocks", -1)){
+		cpTrio1.setConfidence(cpTrio2.confidence()
+				* (double) nearestTrioVC2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
+
+		// Try to calculate confidence using only read conf. scores if both
+		// variants are in same mergeBlock.
+		if (vc1.getAttributeAsInt("mergedBlocks", -1) == vc2.getAttributeAsInt("mergedBlocks", -1)) {
 			ConfidencePair<Double, Integer> cpRead = multiplyConfidence(vc1, vc2);
-			
-			// Compare amount of steps to determine which conf. score is returned
-			if(cpRead.steps() < (cpTrio1.steps() + cpTrio2.steps())/2){
+
+			// Compare amount of steps to determine which conf. score is
+			// returned
+			if (cpRead.steps() < (cpTrio1.steps() + cpTrio2.steps()) / 2) {
 				return cpRead.confidence();
 			}
 		}
-		
 
 		return cpTrio1.confidence() * cpTrio2.confidence();
 	}
@@ -262,18 +276,59 @@ public class HaplotypeBlock {
 		return nearestTrioVC;
 	}
 
-	private ConfidencePair<Double, Integer> multiplyConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
+	private ConfidencePair<Double, Integer> multiplyConfidence(VariantContext vc1, VariantContext vc2)
+			throws Exception {
 		double product = 1.0;
-		
-		if(vc1 == vc2){
+
+		if (vc1 == vc2) {
 			return new ConfidencePair<Double, Integer>(1.0, 0);
 		}
-		
+
 		// Variants must be in same mergeBlock, or else something is wrong
 		if (vc1.getAttributeAsInt("mergedBlocks", -1) != vc2.getAttributeAsInt("mergedBlocks", -1)) {
-			System.out.println(vc1.toStringDecodeGenotypes());
-			System.out.println(vc2.toStringDecodeGenotypes());
-			throw new Exception("No trio and not in same block.... Hmmm..... Something went wrong.");
+			// Handle funny jumps due to paired-reads or RNAseq
+			VariantContext linkerBlockVC=null;
+			VariantContext otherBlockVC=null;
+			if (vc1.getAttributeAsInt("mergedBlocks", -1) == -2 || vc2.getAttributeAsInt("mergedBlocks", -1) == -2) {
+				if (vc1.getAttributeAsInt("mergedBlocks", -1) == -2) {
+					linkerBlockVC = vc1;
+					otherBlockVC = vc2;
+				} else if (vc2.getAttributeAsInt("mergedBlocks", -1) == -2) {
+					linkerBlockVC = vc2;
+					otherBlockVC = vc1;
+				}
+				ArrayList<VariantContext> linkerVars = new ArrayList<VariantContext>();
+				for (VariantContext v : this.getAllVariants()) {
+					if (v.hasAttribute("linkedPreceding")) {
+						linkerVars.add(v);
+					}
+				}
+				VariantContext linkerV = null;
+				if(linkerVars.size() == 1){
+					linkerV = linkerVars.get(0);
+				} else {
+					// Find variant closest downstream, as this one must be connected with linkerBlockVC
+					VariantContext closestDSVar = linkerVars.get(0);
+					for(VariantContext lv : linkerVars){
+						if(lv.getStart() < linkerBlockVC.getStart() && lv.getStart() > closestDSVar.getStart()){
+							closestDSVar = lv;
+						}
+					}
+					linkerV = closestDSVar;
+				}
+				
+				ConfidencePair<Double, Integer> confP1 = multiplyConfidence(linkerV, linkerBlockVC);
+				ConfidencePair<Double, Integer> confP2 = multiplyConfidence(otherBlockVC,
+						(VariantContext) linkerV.getAttribute("linkedPreceding"));
+				double finalConf = confP1.confidence() * confP2.confidence()
+						* linkerV.getAttributeAsDouble("linkedConfidence", -1.0);
+				int finalSteps = 1 + confP1.steps() + confP2.steps();
+				return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
+			} else {
+				System.out.println(vc1.toStringDecodeGenotypes());
+				System.out.println(vc2.toStringDecodeGenotypes());
+				throw new Exception("No trio and not in same block.... Hmmm..... Something went wrong.");
+			}
 		}
 
 		int vc1Start = vc1.getStart();
@@ -294,34 +349,54 @@ public class HaplotypeBlock {
 			curVC = this.getSimVC((VariantContext) curVC.getAttribute("Preceding"));
 		}
 		product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence");
-		
-				
+
 		return new ConfidencePair<Double, Integer>(product, cnt);
 	}
 
 	/**
 	 * Set phased attribute of a variant's patient_GT context to true.
-	 * @param trioVar - Variant whose phase is to be changed
-	 * @return True - If var found
-	 * 		   False - If var not found
+	 * 
+	 * @param trioVar
+	 *            - Variant whose phase is to be changed
+	 * @return True - If var found False - If var not found
 	 */
 	public boolean setPhased(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				if(trioVar.getAttributeAsBoolean("Innocuous", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
+				if (trioVar.getAttributeAsBoolean("Innocuous", false)) {
+					this.replaceVariant(new VariantContextBuilder(posVC)
+							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
+									.attribute("TrioConfidence",
+											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
+									.make())
+							.attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
 				} else {
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND1);
+					this.replaceVariant(new VariantContextBuilder(posVC)
+							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
+									.attribute("TrioConfidence",
+											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
+									.make())
+							.make(), posVC, Strand.STRAND1);
 				}
 				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				if(trioVar.getAttributeAsBoolean("Innocuous", false)){
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
+				if (trioVar.getAttributeAsBoolean("Innocuous", false)) {
+					this.replaceVariant(new VariantContextBuilder(posVC)
+							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
+									.attribute("TrioConfidence",
+											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
+									.make())
+							.attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
 				} else {
-					this.replaceVariant(new VariantContextBuilder(posVC).genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true).attribute("TrioConfidence", trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")).make()).make(), posVC, Strand.STRAND2);
+					this.replaceVariant(new VariantContextBuilder(posVC)
+							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
+									.attribute("TrioConfidence",
+											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
+									.make())
+							.make(), posVC, Strand.STRAND2);
 				}
 				return true;
 			}
@@ -329,23 +404,25 @@ public class HaplotypeBlock {
 		return false;
 	}
 
-	
 	/**
 	 * Set Innocuous attribute of a variant's patient_GT context to true.
-	 * @param trioVar - Variant whose phase is to be changed
-	 * @return True - If var found
-	 * 		   False - If var not found
+	 * 
+	 * @param trioVar
+	 *            - Variant whose phase is to be changed
+	 * @return True - If var found False - If var not found
 	 */
 	public boolean setTripHet(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC,
+						Strand.STRAND1);
 				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
+				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC,
+						Strand.STRAND2);
 				return true;
 			}
 		}
