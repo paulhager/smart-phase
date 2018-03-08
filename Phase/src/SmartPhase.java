@@ -47,7 +47,7 @@ import picard.pedigree.PedFile;
 public class SmartPhase {
 
 	public enum Phase {
-		CIS, TRANS, OBSERVED
+		CIS, TRANS, TOTAL_OBSERVED
 	}
 
 	// static SAMRecordIterator samIterator;
@@ -63,7 +63,7 @@ public class SmartPhase {
 	static ArrayList<VariantContext> seenInRead;
 	static ArrayList<VariantContext> NOT_SeenInRead;
 
-	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter;
+	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter;
 	static HashMap<VariantContext, VariantContext> pairedReadsVarMaps = new HashMap<VariantContext, VariantContext>();
 
 	static String PATIENT_ID;
@@ -86,7 +86,7 @@ public class SmartPhase {
 	static HashMap<String, ArrayList<VariantContext>> physicalPhasingMap = new HashMap<String, ArrayList<VariantContext>>();
 	static HashMap<VariantContext, String> physicalPhasingPIDMap = new HashMap<VariantContext, String>();
 
-	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
 
 	static HashMap<VariantContext, VariantContext> exonStartVars = new HashMap<VariantContext, VariantContext>();
 
@@ -727,8 +727,8 @@ public class SmartPhase {
 
 		Set<VariantContext> key;
 
-		phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
-		skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer>();
+		phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
+		skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
 
 		exonStartVars = new HashMap<VariantContext, VariantContext>();
 
@@ -867,15 +867,13 @@ public class SmartPhase {
 			key.add(secondVar);
 			key.add(firstVar);
 
-			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
-					0);
+					0.0);
 			observedCounter = phaseCounter.getOrDefault(
-					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 
-			
-			confidence = Math
-					.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
 			// Check if trio info contradicts cis/trans counters
 			if (checkContradiction) {
@@ -899,8 +897,9 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
-							if(returnedBlock != null){
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+									newVar);
+							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
 							}
 							continue;
@@ -920,8 +919,9 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
-							if(returnedBlock != null){
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+									newVar);
+							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
 							}
 							continue;
@@ -934,7 +934,7 @@ public class SmartPhase {
 					.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
-			
+
 			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
@@ -963,56 +963,58 @@ public class SmartPhase {
 				key.add(secondVar);
 				key.add(endOfFirstExon);
 				cisCounter = skipIntronCounter
-						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
+						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
 				transCounter = skipIntronCounter
-						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0);
-				
+						.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0.0);
+
 				observedCounter = phaseCounter.getOrDefault(
-						new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+						new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 
 				confidence = Math
 						.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
-				
-				if(cisCounter != transCounter){
+
+				if (cisCounter != transCounter) {
 					for (HaplotypeBlock hb : intervalBlocks) {
 						HaplotypeBlock.Strand ex1Strand = hb.getStrandSimVC(endOfFirstExon);
 						if (ex1Strand != null) {
-							// Replace variant with one with a reference to link for confidence calculations later
-							VariantContext linkingVariant = new VariantContextBuilder(newVar).attribute("linkedPreceding", hb.getSimVC(endOfFirstExon)).attribute("linkedConfidence", confidence).make();
+							// Replace variant with one with a reference to link
+							// for confidence calculations later
+							VariantContext linkingVariant = new VariantContextBuilder(newVar)
+									.attribute("linkedPreceding", hb.getSimVC(endOfFirstExon))
+									.attribute("linkedConfidence", confidence).make();
 							newVar = hapBlock.getSimVC(newVar);
 							hapBlock.replaceVariant(linkingVariant, newVar, hapBlock.getStrand(newVar));
 							globalRNAseqCount++;
-							
+
 							int newMergeBlock = (int) hb.getSimVC(endOfFirstExon).getAttribute("mergedBlocks");
 							newMergeBlock++;
-							
+
 							if (cisCounter > transCounter) {
 								hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 										ex1Strand, newMergeBlock);
 								hb.addVariantsMerge(
 										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-										hb.getOppStrand(ex1Strand), newMergeBlock);			
+										hb.getOppStrand(ex1Strand), newMergeBlock);
 								hapBlock = hb;
 							} else if (transCounter > cisCounter) {
 								hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 										hb.getOppStrand(ex1Strand), newMergeBlock);
 								hb.addVariantsMerge(
 										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
-										ex1Strand, newMergeBlock);							
+										ex1Strand, newMergeBlock);
 								hapBlock = hb;
-							}	
+							}
 						}
 					}
 				}
-				
+
 			}
-			
+
 			HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
-			if(returnedBlock != null){
+			if (returnedBlock != null) {
 				hapBlock = returnedBlock;
 			}
-			
-			
+
 		}
 		intervalBlocks.add(hapBlock);
 
@@ -1020,52 +1022,54 @@ public class SmartPhase {
 		// twice for overlapping intervals.
 		return intervalBlocks;
 	}
-	
+
 	// Merge blocks if variant is part of read pair
-	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock, ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar) throws Exception{
-		if(pairedReadsVarMaps.containsKey(secondVar)){
+	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock,
+			ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar) throws Exception {
+		if (pairedReadsVarMaps.containsKey(secondVar)) {
 			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
-			for(HaplotypeBlock hb : intervalBlocks){
+			for (HaplotypeBlock hb : intervalBlocks) {
 				HaplotypeBlock.Strand conVarStrand = hb.getStrandSimVC(connectionVar);
-				if(conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null){
+				if (conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null) {
 					HashSet<VariantContext> key = new HashSet<VariantContext>();
 					key.add(secondVar);
 					key.add(connectionVar);
-					double cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0);
-					double transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0);
-					System.out.println(cisCounter);
-					System.out.println(transCounter);
+					double cisCounter = phaseCounter
+							.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
+					double transCounter = phaseCounter
+							.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0.0);
 					double observedCounter = phaseCounter.getOrDefault(
-							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.OBSERVED), Integer.MAX_VALUE);
+							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 					double confidence = Math
 							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
-					
-					// Replace variant with one with a reference to link for confidence calculations later
-					VariantContext linkingVariant = new VariantContextBuilder(oldVar).attribute("linkedPreceding", hb.getSimVC(connectionVar)).attribute("linkedConfidence", confidence).make();
+
+					// Replace variant with one with a reference to link for
+					// confidence calculations later
+					VariantContext linkingVariant = new VariantContextBuilder(oldVar)
+							.attribute("linkedPreceding", hb.getSimVC(connectionVar))
+							.attribute("linkedConfidence", confidence).make();
 					int newMergeBlock = (int) hb.getSimVC(connectionVar).getAttribute("mergedBlocks");
 					newMergeBlock++;
 					oldVar = hapBlock.getSimVC(oldVar);
-					
-					if(cisCounter > transCounter){
+
+					if (cisCounter > transCounter) {
 						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 								conVarStrand, newMergeBlock);
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 								hb.getOppStrand(conVarStrand), newMergeBlock);
-						System.out.println("cis");
 						return hb;
-					} else if (transCounter > cisCounter){
+					} else if (transCounter > cisCounter) {
 						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 								hb.getOppStrand(conVarStrand), newMergeBlock);
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 								conVarStrand, newMergeBlock);
-						System.out.println("trans");
 						return hb;
 					} else {
-						System.out.println("WHATTTT");
+						//System.out.println("WHATTTT");
 					}
 				}
 			}
@@ -1178,13 +1182,15 @@ public class SmartPhase {
 						if ((!delVar || del) && (!insertVar || insert)) {
 							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
 								if (varEx1Seen) {
-									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.CIS);
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r,
+											subStrStart, subStrEnd, Phase.CIS);
 								} else {
-									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v,
-											Phase.TRANS);
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r,
+											subStrStart, subStrEnd, Phase.TRANS);
 								}
 							} else if (varEx1Seen) {
-								skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, Phase.TRANS);
+								skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r, subStrStart,
+										subStrEnd, Phase.TRANS);
 							}
 						}
 						varExon2 = v;
@@ -1194,10 +1200,15 @@ public class SmartPhase {
 					}
 				}
 			}
+			
+			SAMRecord dummyRead = new SAMRecord(null);
+			dummyRead.setBaseQualityString("*");
 
 			// Increase observed count
-			phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.OBSERVED);
-			phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.OBSERVED);
+			phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd,
+					Phase.TOTAL_OBSERVED);
+			phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd,
+					Phase.TOTAL_OBSERVED);
 
 			// Check alternative allele co-occurence on read
 			if ((!delVar || del) && (!insertVar || insert)) {
@@ -1208,18 +1219,21 @@ public class SmartPhase {
 					seenInRead.add(v);
 					// Increase CIS counter for all also found with this
 					// read
-					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.CIS);
+					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd,
+							Phase.CIS);
 
 					// Increase TRANS counter for all examined and NOT
 					// found on this read
-					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, Phase.TRANS);
+					phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd,
+							Phase.TRANS);
 				} else {
 
 					NOT_SeenInRead.add(v);
 
 					// Increase TRANS counter for all examined and
 					// found on this read
-					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, Phase.TRANS);
+					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd,
+							Phase.TRANS);
 				}
 			} else {
 				NOT_SeenInRead.add(v);
@@ -1228,15 +1242,35 @@ public class SmartPhase {
 		return trimPosVarsInRead.get(0);
 	}
 
-	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> updatePhaseCounter(
-			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Integer> phaseCounter,
-			ArrayList<VariantContext> group, VariantContext v, Phase phase) {
+	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
+			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter, ArrayList<VariantContext> group,
+			VariantContext v, SAMRecord r, int subStrStart, int subStrEnd, Phase phase) {
+		// One subtracted as we are working now with indexes and not substrings
+		subStrEnd = subStrEnd - 1;
+		byte[] baseQualities = r.getBaseQualities();
+		double averageQuality = 1.0;
+		if (!r.getBaseQualityString().equals("*")) {
+			if (baseQualities.length != r.getReadLength()) {
+				System.err.println("Base qualities array and read length not equal");
+			}
+
+			averageQuality = 0;
+			for (int currentBase = subStrStart; currentBase <= subStrEnd; currentBase++) {
+				double miscallProb = Math.pow(10, Double.valueOf(baseQualities[currentBase]) / -10);
+				averageQuality += miscallProb;
+			}
+			// Take average and then change from prob. error to prob. correct
+			averageQuality = averageQuality / (subStrEnd + 1 - subStrStart);
+			averageQuality = 1.0 - averageQuality;
+		}
+		final double finalAverageQuality = averageQuality;
+		// System.out.println(finalAverageQuality);
 		for (VariantContext member : group) {
 			HashSet<VariantContext> key = new HashSet<VariantContext>();
 			key.add(v);
 			key.add(member);
 			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
-					(k, val) -> (val == null) ? 1 : val + 1);
+					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);
 		}
 		return phaseCounter;
 	}
