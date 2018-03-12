@@ -83,8 +83,8 @@ public class SmartPhase {
 	static int globalContradiction = 0;
 	static int globalRNAseqCount = 0;
 
-	static HashMap<String, ArrayList<VariantContext>> physicalPhasingMap = new HashMap<String, ArrayList<VariantContext>>();
-	static HashMap<VariantContext, String> physicalPhasingPIDMap = new HashMap<VariantContext, String>();
+	static HashMap<String, String> physicalPhasingPIDMap = new HashMap<String, String>();
+	static HashMap<String, String> physicalPhasingPGTMap = new HashMap<String, String>();
 
 	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
 
@@ -477,7 +477,23 @@ public class SmartPhase {
 						}
 
 						if (notPhased) {
-							totalConfidence = 0;
+							// Check if physical phasing info from GATK can
+							// phase
+							String ppInnerKey = innerVariant.getContig()+"|"+innerVariant.getStart()+"|"+innerVariant.getEnd()+innerVariant.getReference().getDisplayString()+"|"+innerVariant.getAlternateAllele(0).getDisplayString();
+							String ppOuterKey = outerVariant.getContig()+"|"+outerVariant.getStart()+"|"+outerVariant.getEnd()+outerVariant.getReference().getDisplayString()+"|"+outerVariant.getAlternateAllele(0).getDisplayString();
+							if (physicalPhasingPIDMap.containsKey(ppInnerKey)
+									&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
+											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
+								String innerVarPhase = physicalPhasingPGTMap.get(ppInnerKey);
+								String outerVarPhase = physicalPhasingPGTMap.get(ppOuterKey);
+
+								notPhased = false;
+								totalConfidence = 1;
+								isTrans = (innerVarPhase.equals(outerVarPhase)) ? false : true;
+							} else {
+								totalConfidence = 0;
+							}
+
 						}
 
 						if (!foundInner) {
@@ -867,7 +883,8 @@ public class SmartPhase {
 			key.add(secondVar);
 			key.add(firstVar);
 
-			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
+			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS),
+					0.0);
 			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
 					0.0);
 			observedCounter = phaseCounter.getOrDefault(
@@ -1039,7 +1056,8 @@ public class SmartPhase {
 					double transCounter = phaseCounter
 							.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0.0);
 					double observedCounter = phaseCounter.getOrDefault(
-							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
+							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
+							Double.MAX_VALUE);
 					double confidence = Math
 							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
@@ -1069,7 +1087,7 @@ public class SmartPhase {
 								conVarStrand, newMergeBlock);
 						return hb;
 					} else {
-						//System.out.println("WHATTTT");
+						// System.out.println("WHATTTT");
 					}
 				}
 			}
@@ -1200,7 +1218,7 @@ public class SmartPhase {
 					}
 				}
 			}
-			
+
 			SAMRecord dummyRead = new SAMRecord(null);
 			dummyRead.setBaseQualityString("*");
 
@@ -1302,12 +1320,11 @@ public class SmartPhase {
 			// Analyse PID and PGT
 			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
 				String PID = (String) patientGT.getAnyAttribute("PID");
-				// String PGT = (String) patientGT.getAnyAttribute("PGT");
-				ArrayList<VariantContext> currentVarList = physicalPhasingMap.getOrDefault(PID,
-						new ArrayList<VariantContext>());
-				currentVarList.add(var);
-				physicalPhasingMap.put(PID, currentVarList);
-				physicalPhasingPIDMap.put(var, PID);
+				String PGT = (String) patientGT.getAnyAttribute("PGT");
+				String key = var.getContig()+"|"+var.getStart()+"|"+var.getEnd()+var.getReference().getDisplayString()+"|"+var.getAlternateAllele(0).getDisplayString();
+
+				physicalPhasingPIDMap.put(key, PID);
+				physicalPhasingPGTMap.put(key, PGT);
 			}
 
 			// RESULTS
@@ -1461,8 +1478,7 @@ public class SmartPhase {
 			return currentBlocks;
 		}
 		int mergeBlockCntr = 2;
-		varsLoop:
-		for (VariantContext trioVar : trioPhasedVars) {
+		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
@@ -1472,7 +1488,7 @@ public class SmartPhase {
 			while (trioVar.getStart() > curBlock.getBlockEnd() && hapBlockIt.hasNext()) {
 				curBlock = hapBlockIt.next();
 			}
-			
+
 			// Check if current trio var lands in current block. If yes, merge
 			while (curBlock.setPhased(trioVar)) {
 
