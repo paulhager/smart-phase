@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.ArrayList;
@@ -388,6 +389,8 @@ public class SmartPhase {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
 			}
 			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
+			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
+			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
 			variantsToPhase = null;
 
 			// If trio information is available, use parents GT to resolve phase
@@ -1495,6 +1498,8 @@ public class SmartPhase {
 				// Initialize mergeblock to first block containing trio var
 				if (mergeBlock == null) {
 					mergeBlock = curBlock;
+					mergeBlockCntr = mergeBlock.getHighestMB();
+					mergeBlockCntr++;
 					prevTrioVar = trioVar;
 					if (hapBlockIt.hasNext()) {
 						hapBlockIt.remove();

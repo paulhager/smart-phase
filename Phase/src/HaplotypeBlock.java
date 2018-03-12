@@ -77,10 +77,18 @@ public class HaplotypeBlock {
 		if(mergeBlockCntr > highestMergedBlockCounter){
 			highestMergedBlockCounter = mergeBlockCntr;
 		}
-
+		
+		
 		for (VariantContext vc : vcList) {
+			// -1 because mergedBlocks start at 1
+			int oldVCMergedBlock = 1;
+			if(vc.hasAttribute("mergedBlocks")){
+				oldVCMergedBlock = (int) vc.getAttribute("mergedBlocks");				
+			}
+			
+			int counterToInsert = highestMergedBlockCounter - 1 + oldVCMergedBlock;
 
-			vc = new VariantContextBuilder(vc).attribute("mergedBlocks", mergeBlockCntr).make();
+			vc = new VariantContextBuilder(vc).attribute("mergedBlocks", counterToInsert).make();
 			strandVariants.get(s).add(vc);
 
 			if (vc.getStart() < blockStart) {
@@ -447,6 +455,15 @@ public class HaplotypeBlock {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns highestMergedBlockCounter value.
+	 * 
+	 * @return highestMergedBlockCounter
+	 */
+	public int getHighestMB() {
+		return highestMergedBlockCounter;
 	}
 
 }
