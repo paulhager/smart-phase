@@ -271,7 +271,7 @@ public class SmartPhase {
 				throw new Exception("Exception while reading bed file: \n" + e.getMessage());
 			}
 		}
-
+		
 		iList = iList.uniqued();
 
 		// Read both VCF files
@@ -1482,6 +1482,10 @@ public class SmartPhase {
 		}
 		int mergeBlockCntr = 2;
 		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
+			
+			if(trioVar.getStart() == 22160020 || trioVar.getStart() == 22168801){
+				System.out.println("");
+			}
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
@@ -1514,24 +1518,27 @@ public class SmartPhase {
 				String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 				String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 
-				HaplotypeBlock.Strand prevStrand = mergeBlock.getStrandSimVC(prevTrioVar);
-				HaplotypeBlock.Strand prevOppStrand = mergeBlock.getOppStrand(prevStrand);
+				HaplotypeBlock.Strand prevStrandMerge = mergeBlock.getStrandSimVC(prevTrioVar);
+				HaplotypeBlock.Strand prevOppStrandMerge = mergeBlock.getOppStrand(prevStrandMerge);
+				
+				HaplotypeBlock.Strand strandCur = curBlock.getStrandSimVC(trioVar);
+				HaplotypeBlock.Strand oppStrandCur = curBlock.getOppStrand(strandCur);
 
-				if (prevStrand == null || prevOppStrand == null) {
+				if (prevStrandMerge == null || prevOppStrandMerge == null) {
 					throw new Exception("STRAND IS NULL");
 				}
 
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(prevStrand), prevStrand, mergeBlockCntr);
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(prevOppStrand), prevOppStrand,
+					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge, mergeBlockCntr);
+					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevOppStrandMerge,
 							mergeBlockCntr);
 				}
 				// TRANS
 				else {
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(prevStrand), prevOppStrand, mergeBlockCntr);
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(prevOppStrand), prevStrand, mergeBlockCntr);
+					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevOppStrandMerge, mergeBlockCntr);
+					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevStrandMerge, mergeBlockCntr);
 				}
 
 				mergeBlockCntr++;
