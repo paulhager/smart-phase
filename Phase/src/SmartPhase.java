@@ -1482,10 +1482,6 @@ public class SmartPhase {
 		}
 		int mergeBlockCntr = 2;
 		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
-			
-			if(trioVar.getStart() == 22160020 || trioVar.getStart() == 22168801){
-				System.out.println("");
-			}
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
