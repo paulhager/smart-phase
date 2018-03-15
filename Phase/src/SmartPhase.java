@@ -1527,14 +1527,14 @@ public class SmartPhase {
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge, mergeBlockCntr);
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevOppStrandMerge,
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevOppStrandMerge,
 							mergeBlockCntr);
 				}
 				// TRANS
 				else {
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevOppStrandMerge, mergeBlockCntr);
-					mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevOppStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevStrandMerge, mergeBlockCntr);
 				}
 
 				mergeBlockCntr++;

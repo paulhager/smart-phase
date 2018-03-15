@@ -73,10 +73,12 @@ public class HaplotypeBlock {
 	 *            - Strand to be added to
 	 * @throws Exception 
 	 */
-	public void addVariantsMerge(ArrayList<VariantContext> vcList, Strand s, int mergeBlockCntr) throws Exception {
+	public int addVariantsMerge(ArrayList<VariantContext> vcList, Strand s, int mergeBlockCntr) throws Exception {
 		if(mergeBlockCntr > highestMergedBlockCounter){
 			highestMergedBlockCounter = mergeBlockCntr;
 		}
+		
+		int highestBC = highestMergedBlockCounter;
 		
 		
 		for (VariantContext vc : vcList) {
@@ -87,6 +89,9 @@ public class HaplotypeBlock {
 			}
 			
 			int counterToInsert = highestMergedBlockCounter - 1 + oldVCMergedBlock;
+			if(counterToInsert > highestBC){
+				highestBC = counterToInsert;
+			}
 
 			vc = new VariantContextBuilder(vc).attribute("mergedBlocks", counterToInsert).make();
 			strandVariants.get(s).add(vc);
@@ -99,6 +104,7 @@ public class HaplotypeBlock {
 				blockEnd = vc.getEnd();
 			}
 		}
+		return highestBC;
 	}
 
 	/**
@@ -177,6 +183,7 @@ public class HaplotypeBlock {
 	 */
 	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
+			
 			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
 					&& posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
