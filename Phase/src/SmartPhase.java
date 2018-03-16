@@ -271,7 +271,7 @@ public class SmartPhase {
 				throw new Exception("Exception while reading bed file: \n" + e.getMessage());
 			}
 		}
-		
+
 		iList = iList.uniqued();
 
 		// Read both VCF files
@@ -482,8 +482,12 @@ public class SmartPhase {
 						if (notPhased) {
 							// Check if physical phasing info from GATK can
 							// phase
-							String ppInnerKey = innerVariant.getContig()+"|"+innerVariant.getStart()+"|"+innerVariant.getEnd()+innerVariant.getReference().getDisplayString()+"|"+innerVariant.getAlternateAllele(0).getDisplayString();
-							String ppOuterKey = outerVariant.getContig()+"|"+outerVariant.getStart()+"|"+outerVariant.getEnd()+outerVariant.getReference().getDisplayString()+"|"+outerVariant.getAlternateAllele(0).getDisplayString();
+							String ppInnerKey = innerVariant.getContig() + "|" + innerVariant.getStart() + "|"
+									+ innerVariant.getEnd() + innerVariant.getReference().getDisplayString() + "|"
+									+ innerVariant.getAlternateAllele(0).getDisplayString();
+							String ppOuterKey = outerVariant.getContig() + "|" + outerVariant.getStart() + "|"
+									+ outerVariant.getEnd() + outerVariant.getReference().getDisplayString() + "|"
+									+ outerVariant.getAlternateAllele(0).getDisplayString();
 							if (physicalPhasingPIDMap.containsKey(ppInnerKey)
 									&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
 											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
@@ -520,14 +524,15 @@ public class SmartPhase {
 						}
 
 						// Calc total number of reads spanning both variants
-						int spanningReads = countReads(curInterval, innerVariant, outerVariant);
+						// int spanningReads = countReads(curInterval,
+						// innerVariant, outerVariant);
 
 						bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
 								+ outerVariant.getReference().getBaseString() + "-"
 								+ outerVariant.getAlternateAllele(0).getBaseString() + "\t" + innerVariant.getContig()
 								+ "-" + innerVariant.getStart() + "-" + innerVariant.getReference().getBaseString()
 								+ "-" + innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
-								+ totalConfidence + "\t" + spanningReads + "\n");
+								+ totalConfidence + "\n");
 					}
 					if (!foundOuter) {
 						missingVars.add(outerVariant);
@@ -590,6 +595,7 @@ public class SmartPhase {
 		}
 	}
 
+	/*
 	private static int countReads(Interval interval, VariantContext vc1, VariantContext vc2) {
 		int count = 0;
 
@@ -638,6 +644,7 @@ public class SmartPhase {
 		}
 		return count;
 	}
+	*/
 
 	public static String grabPatID() {
 		return PATIENT_ID;
@@ -835,14 +842,15 @@ public class SmartPhase {
 		VariantContext secondVar;
 
 		// Examine triovars to ensure no contradictions
-		VariantContext firstTrioVar = null;
-		VariantContext secondTrioVar = null;
+		VariantContext curTrioVar = null;
+		VariantContext blockTrioVar1 = null;
+		VariantContext blockTrioVar2 = null;
 
 		Iterator<VariantContext> trioVarsIterator = null;
 		if (TRIO) {
 			trioVarsIterator = trioVars.iterator();
 			if (trioVarsIterator.hasNext()) {
-				firstTrioVar = trioVarsIterator.next();
+				curTrioVar = trioVarsIterator.next();
 			}
 		}
 
@@ -851,28 +859,28 @@ public class SmartPhase {
 			firstVar = variantsToPhase.get(i);
 			secondVar = variantsToPhase.get(i + 1);
 
-			// Check if current two vars directly next to each other whose read
-			// counts are being compared are also trio vars
+			// Keep track if there is at least one trioVar in block
+			// (blockTrioVar1) and keep an eye out
+			// for any others (blockTrioVar2) to ensure no trio phasing is
+			// disregarded when creating blocks
 			boolean checkContradiction = false;
 			if (TRIO) {
-				if (firstTrioVar != null) {
-					while ((firstTrioVar.getStart() < firstVar.getStart()
-							|| !firstTrioVar.getGenotype(PATIENT_ID).isPhased()) && trioVarsIterator.hasNext()) {
-						firstTrioVar = trioVarsIterator.next();
+				if (blockTrioVar1 == null) {
+					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < firstVar.getStart()) {
+						curTrioVar = trioVarsIterator.next();
 					}
-					if (firstTrioVar.getStart() == firstVar.getStart() && trioVarsIterator.hasNext()) {
-						secondTrioVar = trioVarsIterator.next();
-						while (trioVarsIterator.hasNext() && !secondTrioVar.getGenotype(PATIENT_ID).isPhased()) {
-							secondTrioVar = trioVarsIterator.next();
-						}
-						if (secondTrioVar.getStart() == secondVar.getStart()
-								&& secondTrioVar.getGenotype(PATIENT_ID).isPhased()
-								&& firstTrioVar.getGenotype(PATIENT_ID).isPhased()) {
-							checkContradiction = true;
-						} else {
-							firstTrioVar = secondTrioVar;
-							secondTrioVar = null;
-						}
+					if (curTrioVar.getStart() == firstVar.getStart() && curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
+						blockTrioVar1 = curTrioVar;
+					}
+				}
+				if (blockTrioVar1 != null) {
+					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < secondVar.getStart()) {
+						curTrioVar = trioVarsIterator.next();
+					}
+					if (curTrioVar.getStart() == secondVar.getStart()
+							&& curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
+						blockTrioVar2 = curTrioVar;
+						checkContradiction = true;
 					}
 				}
 			}
@@ -895,19 +903,21 @@ public class SmartPhase {
 
 			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
-			// Check if trio info contradicts cis/trans counters
+			// Check if trio info contradicts how cis/trans counters would add
+			// var to curBlock
 			if (checkContradiction) {
-				String[] prevTrioSplit = firstTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
-				String[] curTrioSplit = secondTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+				String[] prevTrioSplit = blockTrioVar1.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+				String[] curTrioSplit = blockTrioVar2.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 
-				double trioConf = (double) firstTrioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")
-						* (double) secondTrioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence");
+				double trioConf = (double) blockTrioVar1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence")
+						* (double) blockTrioVar2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence");
 
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
 					// Contradiction
-					if (transCounter >= cisCounter) {
+					if (transCounter >= cisCounter
+							&& hapBlock.getStrandSimVC(firstVar) == hapBlock.getStrandSimVC(blockTrioVar1)){
 						// Trio has better confidence
 						if (trioConf > confidence) {
 							globalContradiction++;
@@ -924,12 +934,8 @@ public class SmartPhase {
 							}
 							continue;
 						}
-					}
-				}
-				// TRANS
-				else {
-					// Contradiction
-					if (cisCounter >= transCounter) {
+					} else if (cisCounter >= transCounter
+									&& hapBlock.getStrandSimVC(firstVar) != hapBlock.getStrandSimVC(blockTrioVar1)) {
 						// Trio has better confidence
 						if (trioConf > confidence) {
 							globalContradiction++;
@@ -939,6 +945,48 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+									newVar);
+							if (returnedBlock != null) {
+								hapBlock = returnedBlock;
+							}
+							continue;
+						}
+					}
+				}
+				// TRANS
+				else {
+					// Contradiction
+					if (cisCounter >= transCounter
+							&& hapBlock.getStrandSimVC(firstVar) == hapBlock.getStrandSimVC(blockTrioVar1)){
+						// Trio has better confidence
+						if (trioConf > confidence) {
+							globalContradiction++;
+							VariantContext newVar = new VariantContextBuilder(secondVar)
+									.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
+											.attribute("ReadConfidence", trioConf).make())
+									.attribute("Preceding", firstVar).make();
+
+							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
+							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+									newVar);
+							if (returnedBlock != null) {
+								hapBlock = returnedBlock;
+							}
+							continue;
+						}
+					}
+					else if (transCounter >= cisCounter
+									&& hapBlock.getStrandSimVC(firstVar) != hapBlock.getStrandSimVC(blockTrioVar1)) {
+						// Trio has better confidence
+						if (trioConf > confidence) {
+							globalContradiction++;
+							VariantContext newVar = new VariantContextBuilder(secondVar)
+									.genotypes(new GenotypeBuilder(secondVar.getGenotype(PATIENT_ID))
+											.attribute("ReadConfidence", trioConf).make())
+									.attribute("Preceding", firstVar).make();
+
+							hapBlock.addVariant(newVar, firstVarStrand);
 							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
@@ -964,6 +1012,7 @@ public class SmartPhase {
 				globalTrans++;
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
 			} else {
+				blockTrioVar1 = null;
 
 				globalNewBlock++;
 				// Cannot phase. Open new haplotypeBlock
@@ -1324,7 +1373,8 @@ public class SmartPhase {
 			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
 				String PID = (String) patientGT.getAnyAttribute("PID");
 				String PGT = (String) patientGT.getAnyAttribute("PGT");
-				String key = var.getContig()+"|"+var.getStart()+"|"+var.getEnd()+var.getReference().getDisplayString()+"|"+var.getAlternateAllele(0).getDisplayString();
+				String key = var.getContig() + "|" + var.getStart() + "|" + var.getEnd()
+						+ var.getReference().getDisplayString() + "|" + var.getAlternateAllele(0).getDisplayString();
 
 				physicalPhasingPIDMap.put(key, PID);
 				physicalPhasingPGTMap.put(key, PGT);
@@ -1483,6 +1533,10 @@ public class SmartPhase {
 		int mergeBlockCntr = 2;
 		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
 
+			if (trioVar.getStart() == 145039523) {
+				System.out.println();
+			}
+
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
 			}
@@ -1516,7 +1570,7 @@ public class SmartPhase {
 
 				HaplotypeBlock.Strand prevStrandMerge = mergeBlock.getStrandSimVC(prevTrioVar);
 				HaplotypeBlock.Strand prevOppStrandMerge = mergeBlock.getOppStrand(prevStrandMerge);
-				
+
 				HaplotypeBlock.Strand strandCur = curBlock.getStrandSimVC(trioVar);
 				HaplotypeBlock.Strand oppStrandCur = curBlock.getOppStrand(strandCur);
 
@@ -1527,14 +1581,17 @@ public class SmartPhase {
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge, mergeBlockCntr);
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevOppStrandMerge,
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge,
 							mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+							prevOppStrandMerge, mergeBlockCntr);
 				}
 				// TRANS
 				else {
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevOppStrandMerge, mergeBlockCntr);
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur), prevStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
+							prevOppStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+							prevStrandMerge, mergeBlockCntr);
 				}
 
 				mergeBlockCntr++;

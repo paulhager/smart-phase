@@ -18,7 +18,6 @@ public class HaplotypeBlock {
 	private int blockEnd = Integer.MIN_VALUE;
 	private int highestMergedBlockCounter = 1;
 	private String PATIENT_ID;
-
 	public HaplotypeBlock(String patID) {
 		strand1 = new ArrayList<VariantContext>();
 		strand2 = new ArrayList<VariantContext>();
@@ -40,7 +39,7 @@ public class HaplotypeBlock {
 	public void addVariant(VariantContext vc, Strand s) {
 		vc = new VariantContextBuilder(vc).attribute("mergedBlocks", highestMergedBlockCounter).make();
 		strandVariants.get(s).add(vc);
-
+		
 		if (vc.getStart() < blockStart) {
 			blockStart = vc.getStart();
 		}
