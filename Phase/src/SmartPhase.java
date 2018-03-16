@@ -869,7 +869,7 @@ public class SmartPhase {
 					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < firstVar.getStart()) {
 						curTrioVar = trioVarsIterator.next();
 					}
-					if (curTrioVar.getStart() == firstVar.getStart() && curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
+					if (curTrioVar != null && curTrioVar.getStart() == firstVar.getStart() && curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
 						blockTrioVar1 = curTrioVar;
 					}
 				}
@@ -877,7 +877,7 @@ public class SmartPhase {
 					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < secondVar.getStart()) {
 						curTrioVar = trioVarsIterator.next();
 					}
-					if (curTrioVar.getStart() == secondVar.getStart()
+					if (curTrioVar != null && curTrioVar.getStart() == secondVar.getStart()
 							&& curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
 						blockTrioVar2 = curTrioVar;
 						checkContradiction = true;
