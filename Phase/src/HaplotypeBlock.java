@@ -18,6 +18,7 @@ public class HaplotypeBlock {
 	private int blockEnd = Integer.MIN_VALUE;
 	private int highestMergedBlockCounter = 1;
 	private String PATIENT_ID;
+
 	public HaplotypeBlock(String patID) {
 		strand1 = new ArrayList<VariantContext>();
 		strand2 = new ArrayList<VariantContext>();
@@ -39,7 +40,7 @@ public class HaplotypeBlock {
 	public void addVariant(VariantContext vc, Strand s) {
 		vc = new VariantContextBuilder(vc).attribute("mergedBlocks", highestMergedBlockCounter).make();
 		strandVariants.get(s).add(vc);
-		
+
 		if (vc.getStart() < blockStart) {
 			blockStart = vc.getStart();
 		}
@@ -70,25 +71,24 @@ public class HaplotypeBlock {
 	 *            - List of variant contexts to add
 	 * @param s
 	 *            - Strand to be added to
-	 * @throws Exception 
+	 * @throws Exception
 	 */
 	public int addVariantsMerge(ArrayList<VariantContext> vcList, Strand s, int mergeBlockCntr) throws Exception {
-		if(mergeBlockCntr > highestMergedBlockCounter){
+		if (mergeBlockCntr > highestMergedBlockCounter) {
 			highestMergedBlockCounter = mergeBlockCntr;
 		}
-		
+
 		int highestBC = highestMergedBlockCounter;
-		
-		
+
 		for (VariantContext vc : vcList) {
 			// -1 because mergedBlocks start at 1
 			int oldVCMergedBlock = 1;
-			if(vc.hasAttribute("mergedBlocks")){
-				oldVCMergedBlock = (int) vc.getAttribute("mergedBlocks");				
+			if (vc.hasAttribute("mergedBlocks")) {
+				oldVCMergedBlock = (int) vc.getAttribute("mergedBlocks");
 			}
-			
+
 			int counterToInsert = highestMergedBlockCounter - 1 + oldVCMergedBlock;
-			if(counterToInsert > highestBC){
+			if (counterToInsert > highestBC) {
 				highestBC = counterToInsert;
 			}
 
@@ -182,7 +182,7 @@ public class HaplotypeBlock {
 	 */
 	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
-			
+
 			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
 					&& posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
@@ -303,43 +303,33 @@ public class HaplotypeBlock {
 			return new ConfidencePair<Double, Integer>(1.0, 0);
 		}
 
-		// Variants must be in same mergeBlock, or else something is wrong
+		// Variants must be in same mergeBlock, or else must be linker
 		if (vc1.getAttributeAsInt("mergedBlocks", -1) != vc2.getAttributeAsInt("mergedBlocks", -1)) {
 			// Handle funny jumps due to paired-reads or RNAseq
 			VariantContext linkerBlockVC = null;
 			VariantContext otherBlockVC = null;
-			if (vc1.getAttributeAsInt("mergedBlocks", -1) == -2 || vc2.getAttributeAsInt("mergedBlocks", -1) == -2) {
-				if (vc1.getAttributeAsInt("mergedBlocks", -1) == -2) {
-					linkerBlockVC = vc1;
-					otherBlockVC = vc2;
-				} else if (vc2.getAttributeAsInt("mergedBlocks", -1) == -2) {
-					linkerBlockVC = vc2;
-					otherBlockVC = vc1;
-				}
-
-				VariantContext linkerV = calcLinkerVar(linkerBlockVC);
-
-				// Check if one of the variants is a linker variant that was
-				// added normally, thus causing us to enter here. If so, dont
-				// call again or else stack overflow awaits.
-				if (!(vc1.hasAttribute("linkedPreceding") && linkerV == vc1)
-						&& !(vc2.hasAttribute("linkedPreceding") && linkerV == vc2)) {
-					
-					ConfidencePair<Double, Integer> confP1 = multiplyConfidence(linkerV, linkerBlockVC);
-					ConfidencePair<Double, Integer> confP2 = multiplyConfidence(otherBlockVC,
-							(VariantContext) linkerV.getAttribute("linkedPreceding"));
-					
-					double finalConf = confP1.confidence() * confP2.confidence()
-							* linkerV.getAttributeAsDouble("linkedConfidence", -1.0);
-					int finalSteps = 1 + confP1.steps() + confP2.steps();
-					
-					return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
-				}
+			if (vc1.getAttributeAsInt("mergedBlocks", -2) > vc2.getAttributeAsInt("mergedBlocks", -1)) {
+				linkerBlockVC = vc1;
+				otherBlockVC = vc2;
+			} else if (vc2.getAttributeAsInt("mergedBlocks", -2) > vc1.getAttributeAsInt("mergedBlocks", -1)) {
+				linkerBlockVC = vc2;
+				otherBlockVC = vc1;
 			} else {
-				System.out.println(vc1.toStringDecodeGenotypes());
-				System.out.println(vc2.toStringDecodeGenotypes());
-				throw new Exception("No trio and not in same block.... Hmmm..... Something went wrong.");
+				throw new Exception("Expecting linker var exception: \n" + vc1.toStringDecodeGenotypes() + "\n"
+						+ vc2.toStringDecodeGenotypes());
 			}
+
+			VariantContext linkerV = calcLinkerVar(linkerBlockVC);
+			
+			ConfidencePair<Double, Integer> confP1 = multiplyConfidence(linkerV, linkerBlockVC);
+			ConfidencePair<Double, Integer> confP2 = multiplyConfidence(otherBlockVC,
+					(VariantContext) linkerV.getAttribute("linkedPreceding"));
+			
+			double finalConf = confP1.confidence() * confP2.confidence()
+					* linkerV.getAttributeAsDouble("linkedConfidence", -1.0);
+			int finalSteps = 1 + confP1.steps() + confP2.steps();
+
+			return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
 		}
 
 		int vc1Start = vc1.getStart();
@@ -364,27 +354,19 @@ public class HaplotypeBlock {
 		return new ConfidencePair<Double, Integer>(product, cnt);
 	}
 
-	private VariantContext calcLinkerVar(VariantContext linkerBlockVC) {
-		ArrayList<VariantContext> linkerVars = new ArrayList<VariantContext>();
+	private VariantContext calcLinkerVar(VariantContext linkerBlockVC) throws Exception {
+		VariantContext linkerVar = null;
 		for (VariantContext v : this.getAllVariants()) {
-			if (v.hasAttribute("linkedPreceding")) {
-				linkerVars.add(v);
+			if (v.hasAttribute("linkedPreceding")
+					&& v.getAttributeAsInt("mergedBlocks", -3) == linkerBlockVC.getAttributeAsInt("mergedBlocks", -4)) {
+				linkerVar = v;
 			}
 		}
-		if (linkerVars.size() == 1) {
-			return linkerVars.get(0);
-		} else {
-			// Find variant closest downstream, as this one must be connected
-			// with linkerBlockVC
-			VariantContext closestDSVar = linkerVars.get(0);
-			for (VariantContext lv : linkerVars) {
-				if (lv.getStart() < linkerBlockVC.getStart() && lv.getStart() > closestDSVar.getStart()) {
-					closestDSVar = lv;
-				}
-			}
-			return closestDSVar;
+		if (linkerVar == null) {
+			throw new Exception(
+					"NO LINKER VAR FOUND. Searching in block of: " + linkerBlockVC.toStringDecodeGenotypes());
 		}
-
+		return linkerVar;
 	}
 
 	/**
