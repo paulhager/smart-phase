@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,6 +84,7 @@ public class SmartPhase {
 	static int globalNewBlock = 0;
 	static int globalContradiction = 0;
 	static int globalRNAseqCount = 0;
+	static int ppPhased = 0;
 
 	static HashMap<String, String> physicalPhasingPIDMap = new HashMap<String, String>();
 	static HashMap<String, String> physicalPhasingPGTMap = new HashMap<String, String>();
@@ -399,7 +401,7 @@ public class SmartPhase {
 				updateTripHet(trioPhasedVariants, phasedVars);
 				phasedVars = mergeBlocks(trioPhasedVariants, phasedVars);
 			}
-
+			
 			// Write final output file
 			// Format:
 			//
@@ -493,6 +495,8 @@ public class SmartPhase {
 											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
 								String innerVarPhase = physicalPhasingPGTMap.get(ppInnerKey);
 								String outerVarPhase = physicalPhasingPGTMap.get(ppOuterKey);
+								
+								ppPhased++;
 
 								notPhased = false;
 								totalConfidence = 1;
@@ -576,6 +580,7 @@ public class SmartPhase {
 		System.out.println("Contradiction count: " + globalContradiction);
 		System.out.println("Innocuous count: " + innocCounter);
 		System.out.println("RNAseq jump count: " + globalRNAseqCount);
+		System.out.println("Physical Phasing Count: "+ ppPhased);
 		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 
 		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
@@ -589,6 +594,7 @@ public class SmartPhase {
 			pwOUTPUT.println("Contradiction count: " + globalContradiction);
 			pwOUTPUT.println("Innocuous count: " + innocCounter);
 			pwOUTPUT.println("RNAseq jump count: " + globalRNAseqCount);
+			pwOUTPUT.println("Physical Phasing Count: "+ ppPhased);
 			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -1095,11 +1101,20 @@ public class SmartPhase {
 	// Merge blocks if variant is part of read pair
 	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock,
 			ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar) throws Exception {
+		ListIterator<HaplotypeBlock> intervalBlocksIterator = null;
+		if(intervalBlocks.size()>0){
+			intervalBlocksIterator = intervalBlocks.listIterator(intervalBlocks.size()-1);			
+		} else {
+			return null;
+		}
+		HaplotypeBlock hb = null;
 		if (pairedReadsVarMaps.containsKey(secondVar)) {
 			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
-			for (HaplotypeBlock hb : intervalBlocks) {
+			while(intervalBlocksIterator.hasPrevious()){
+				hb = intervalBlocksIterator.previous();
 				HaplotypeBlock.Strand conVarStrand = hb.getStrandSimVC(connectionVar);
 				if (conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null) {
+					intervalBlocksIterator.remove();
 					HashSet<VariantContext> key = new HashSet<VariantContext>();
 					key.add(secondVar);
 					key.add(connectionVar);
@@ -1532,10 +1547,6 @@ public class SmartPhase {
 		}
 		int mergeBlockCntr = 2;
 		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
-
-			if (trioVar.getStart() == 145039523) {
-				System.out.println();
-			}
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
