@@ -389,6 +389,8 @@ public class SmartPhase {
 
 			if (TRIO) {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
+			} else {
+				physicalPhasing(variantsToPhase.iterator());
 			}
 			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
@@ -1532,6 +1534,25 @@ public class SmartPhase {
 
 		// Returns only phased variants
 		return outVariants;
+	}
+	
+	public static void physicalPhasing(Iterator<VariantContext> inVariantsIterator) {
+		while (inVariantsIterator.hasNext()) {
+
+			VariantContext var = inVariantsIterator.next();
+			Genotype patientGT = var.getGenotype(PATIENT_ID);
+
+			// Analyse PID and PGT
+			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
+				String PID = (String) patientGT.getAnyAttribute("PID");
+				String PGT = (String) patientGT.getAnyAttribute("PGT");
+				String key = var.getContig() + "|" + var.getStart() + "|" + var.getEnd()
+						+ var.getReference().getDisplayString() + "|" + var.getAlternateAllele(0).getDisplayString();
+
+				physicalPhasingPIDMap.put(key, PID);
+				physicalPhasingPGTMap.put(key, PGT);
+			}
+		}
 	}
 
 	private static ArrayList<HaplotypeBlock> mergeBlocks(ArrayList<VariantContext> trioPhasedVars,
