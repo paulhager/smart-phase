@@ -72,6 +72,7 @@ public class SmartPhase {
 
 	static boolean TRIO = false;
 	static boolean READS = false;
+	static boolean PHYSICAL_PHASING = false;
 
 	// Statistics
 	static int denovoCounter = 0;
@@ -102,14 +103,15 @@ public class SmartPhase {
 		options.addRequiredOption("p", "patient", true, "ID of patient through vcf and ped files.");
 		options.addRequiredOption("o", "output", true, "Path to desired output file.");
 		options.addOption("g", "gene-regions", true, "Path to file containing genomic regions to be analyzed (.bed)");
-		options.addOption("r", "reads1", true,
+		options.addOption("r", "reads", true,
 				"Comma seperated list of paths to files containing aligned patient reads.");
 		options.addOption("m", "mapq", true,
 				"Comma seperated list of mapping quality cutoff values to use when examining reads. Each value corresponds to the min MAPQ for an input BAM file.");
-		options.addOption("t", false,
+		options.addOption("t", "trio", false,
 				"Specify if trio information is available AND contained in original-variants file provided.");
 		options.addOption("d", "ped", true, "Path to file containing vcf IDs of trio.");
 		options.addOption("c", false, "Is this the cohort set?");
+		options.addOption("y", "physical-phasing", false, "Use GATK physical phasing info as last-resort phasing?");
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd = parser.parse(options, args);
@@ -133,6 +135,10 @@ public class SmartPhase {
 			TRIO = true;
 			inputPEDIGREE = new File(cmd.getOptionValue("d"));
 			familyPed = PedFile.fromFile(inputPEDIGREE, true);
+		}
+		
+		if(cmd.hasOption("y")){
+			PHYSICAL_PHASING = true;
 		}
 
 		if (cmd.hasOption("c")) {
@@ -389,7 +395,7 @@ public class SmartPhase {
 
 			if (TRIO) {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
-			} else {
+			} else if(PHYSICAL_PHASING) {
 				physicalPhasing(variantsToPhase.iterator());
 			}
 			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
@@ -483,7 +489,7 @@ public class SmartPhase {
 							}
 						}
 
-						if (notPhased) {
+						if (notPhased && PHYSICAL_PHASING) {
 							// Check if physical phasing info from GATK can
 							// phase
 							String ppInnerKey = innerVariant.getContig() + "|" + innerVariant.getStart() + "|"
@@ -1387,7 +1393,7 @@ public class SmartPhase {
 			}
 
 			// Analyse PID and PGT
-			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
+			if (PHYSICAL_PHASING && patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
 				String PID = (String) patientGT.getAnyAttribute("PID");
 				String PGT = (String) patientGT.getAnyAttribute("PGT");
 				String key = var.getContig() + "|" + var.getStart() + "|" + var.getEnd()
