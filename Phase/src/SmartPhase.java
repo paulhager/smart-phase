@@ -1573,6 +1573,8 @@ public class SmartPhase {
 			return currentBlocks;
 		}
 		int mergeBlockCntr = 2;
+		int posMergeBlockCntr1;
+		int posMergeBlockCntr2;
 		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
@@ -1619,17 +1621,19 @@ public class SmartPhase {
 				// CIS
 				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
 						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge,
+					posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur), prevStrandMerge,
 							mergeBlockCntr);
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+					posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
 							prevOppStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = (posMergeBlockCntr1 > posMergeBlockCntr2) ? posMergeBlockCntr1 : posMergeBlockCntr2;
 				}
 				// TRANS
 				else {
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
+					posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
 							prevOppStrandMerge, mergeBlockCntr);
-					mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+					posMergeBlockCntr2 = mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
 							prevStrandMerge, mergeBlockCntr);
+					mergeBlockCntr = (posMergeBlockCntr1 > posMergeBlockCntr2) ? posMergeBlockCntr1 : posMergeBlockCntr2;
 				}
 
 				mergeBlockCntr++;
@@ -1678,5 +1682,4 @@ public class SmartPhase {
 			}
 		}
 	}
-
 }
