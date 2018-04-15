@@ -73,6 +73,8 @@ public class SmartPhase {
 	static boolean TRIO = false;
 	static boolean READS = false;
 	static boolean PHYSICAL_PHASING = false;
+	
+	static boolean countReads = false;
 
 	// Statistics
 	static int denovoCounter = 0;
@@ -411,15 +413,6 @@ public class SmartPhase {
 			}
 			
 			// Write final output file
-			// Format:
-			//
-			// INTERVAL\t$CONTIG\t$START\t$END
-			// $VAR1START-$VAR1END\t$VAR2START-$VAR2END\t$PHASEINT\t$CONFIDENCE
-			//
-			// $PHASEINT:
-			// 0 = NOT Compound Heterozygous
-			// 1 = IS Compound Heterozygous
-			// -1 = No Information
 			try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
 
 				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
@@ -440,7 +433,7 @@ public class SmartPhase {
 						boolean isTrans = false;
 						VariantContext innerVariant = regionFiltVariantList.get(innerCount);
 
-						double totalConfidence = -1;
+						double totalConfidence = 0;
 						for (HaplotypeBlock hb : phasedVars) {
 							if (hb == null) {
 								throw new Exception("HaplotypeBlock is null!");
@@ -536,15 +529,25 @@ public class SmartPhase {
 						}
 
 						// Calc total number of reads spanning both variants
-						// int spanningReads = countReads(curInterval,
-						// innerVariant, outerVariant);
-
-						bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
-								+ outerVariant.getReference().getBaseString() + "-"
-								+ outerVariant.getAlternateAllele(0).getBaseString() + "\t" + innerVariant.getContig()
-								+ "-" + innerVariant.getStart() + "-" + innerVariant.getReference().getBaseString()
-								+ "-" + innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
-								+ totalConfidence + "\n");
+						
+						if(countReads){
+							int spanningReads = countReads(curInterval,
+									innerVariant, outerVariant);
+							
+							bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
+									+ outerVariant.getReference().getBaseString() + "-"
+									+ outerVariant.getAlternateAllele(0).getBaseString() + "\t" + innerVariant.getContig()
+									+ "-" + innerVariant.getStart() + "-" + innerVariant.getReference().getBaseString()
+									+ "-" + innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
+									+ totalConfidence + "\t" + spanningReads + "\n");
+						} else {
+							bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
+									+ outerVariant.getReference().getBaseString() + "-"
+									+ outerVariant.getAlternateAllele(0).getBaseString() + "\t" + innerVariant.getContig()
+									+ "-" + innerVariant.getStart() + "-" + innerVariant.getReference().getBaseString()
+									+ "-" + innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
+									+ totalConfidence + "\n");
+						}
 					}
 					if (!foundOuter) {
 						missingVars.add(outerVariant);
@@ -609,7 +612,7 @@ public class SmartPhase {
 		}
 	}
 
-	/*
+	
 	private static int countReads(Interval interval, VariantContext vc1, VariantContext vc2) {
 		int count = 0;
 
@@ -658,7 +661,7 @@ public class SmartPhase {
 		}
 		return count;
 	}
-	*/
+	
 
 	public static String grabPatID() {
 		return PATIENT_ID;
@@ -872,6 +875,10 @@ public class SmartPhase {
 		for (int i = 0; i < variantsToPhase.size() - 1; i++) {
 			firstVar = variantsToPhase.get(i);
 			secondVar = variantsToPhase.get(i + 1);
+			
+			if(firstVar.getStart() == 31238589){
+				System.out.println();
+			}
 
 			// Keep track if there is at least one trioVar in block
 			// (blockTrioVar1) and keep an eye out
@@ -1122,7 +1129,6 @@ public class SmartPhase {
 				hb = intervalBlocksIterator.previous();
 				HaplotypeBlock.Strand conVarStrand = hb.getStrandSimVC(connectionVar);
 				if (conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null) {
-					intervalBlocksIterator.remove();
 					HashSet<VariantContext> key = new HashSet<VariantContext>();
 					key.add(secondVar);
 					key.add(connectionVar);
@@ -1146,6 +1152,7 @@ public class SmartPhase {
 					oldVar = hapBlock.getSimVC(oldVar);
 
 					if (cisCounter > transCounter) {
+						intervalBlocksIterator.remove();
 						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 								conVarStrand, newMergeBlock);
@@ -1154,6 +1161,7 @@ public class SmartPhase {
 								hb.getOppStrand(conVarStrand), newMergeBlock);
 						return hb;
 					} else if (transCounter > cisCounter) {
+						intervalBlocksIterator.remove();
 						hapBlock.replaceVariant(linkingVariant, oldVar, hapBlock.getStrand(oldVar));
 						hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
 								hb.getOppStrand(conVarStrand), newMergeBlock);

@@ -1,6 +1,8 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import htsjdk.variant.variantcontext.GenotypeBuilder;
@@ -309,43 +311,50 @@ public class HaplotypeBlock {
 
 		return calcConfCleanRunLinkedPreceding(vc1, vc2);
 	}
-	
-	private ConfidencePair<Double, Integer> calcConfidenceLinkedBlockPairs(VariantContext var1, VariantContext var2) throws Exception{
-		int var1MB = var1.getAttributeAsInt("mergedBLocks", 0);
-		int var2MB = var1.getAttributeAsInt("mergedBLocks", 0);
-		
+
+	private ConfidencePair<Double, Integer> calcConfidenceLinkedBlockPairs(VariantContext var1, VariantContext var2)
+			throws Exception {
+		int var1MB = var1.getAttributeAsInt("mergedBlocks", 0);
+		int var2MB = var2.getAttributeAsInt("mergedBlocks", 0);
+
 		int higherMB;
 		int lowerMB;
-		
+
 		boolean foundRun1 = false;
 		boolean foundRun2 = false;
-		
+
 		ConfidencePair<Double, Integer> confP1 = null;
 		ConfidencePair<Double, Integer> confP2 = null;
-		
+
 		int curMergedBlock;
 		int linkedPrecedingCount = 1;
 		ArrayList<VariantContext> tempVarConList = new ArrayList<VariantContext>();
 		ArrayList<VariantContext> tempTrioVarList = new ArrayList<VariantContext>();
-		ArrayList<int[]> tempBlockConnectionsList = new ArrayList<int[]>();
-		
+		ArrayList<Integer[]> tempBlockConnectionsList = new ArrayList<Integer[]>();
+
 		HashMap<Integer, ArrayList<VariantContext>> mergedBlockVars = new HashMap<Integer, ArrayList<VariantContext>>();
 		// Run through all vars and group by mergedBlock
-		for(VariantContext var : this.getAllVariants()){
-			curMergedBlock = var.getAttributeAsInt("mergedBLocks", 0);
+		int hMBC = Integer.MIN_VALUE;
+		for (VariantContext var : this.getAllVariants()) {
+			curMergedBlock = var.getAttributeAsInt("mergedBlocks", 0);
+			if (curMergedBlock > hMBC) {
+				hMBC = curMergedBlock;
+			}
 			// Grabs the arraylist of vars with curMergedBlock or creates
-			tempVarConList = (mergedBlockVars.containsKey(curMergedBlock)) ? mergedBlockVars.get(curMergedBlock) : new ArrayList<VariantContext>();
+			tempVarConList = (mergedBlockVars.containsKey(curMergedBlock)) ? mergedBlockVars.get(curMergedBlock)
+					: new ArrayList<VariantContext>();
 			tempVarConList.add(var);
 			mergedBlockVars.put(curMergedBlock, tempVarConList);
 		}
-		// Start walking backwards through all merged block sequences and notate their connections and trio vars they contain
-		for(int curMergeBC = highestMergedBlockCounter; curMergeBC > 0; curMergeBC--){
+		// Start walking backwards through all merged block sequences and notate
+		// their connections and trio vars they contain
+		for (int curMergeBC = hMBC; curMergeBC > 0; curMergeBC--) {
 			// End of run
-			if(linkedPrecedingCount == 0){
+			if (linkedPrecedingCount == 0) {
 				linkedPrecedingCount = 1;
 				// Both vars found in run, calc distance between
-				if(foundRun1 && foundRun2){
-					if(var1MB > var2MB){
+				if (foundRun1 && foundRun2) {
+					if (var1MB > var2MB) {
 						higherMB = var1MB;
 						lowerMB = var2MB;
 					} else {
@@ -354,18 +363,19 @@ public class HaplotypeBlock {
 					}
 					// Check if easy or hard case
 					boolean unbrokenRun = true;
-					for(int runMBCheck = higherMB; runMBCheck > lowerMB; runMBCheck--){
-						int[] testArray = {runMBCheck, runMBCheck-1};
-						if(!tempBlockConnectionsList.contains(testArray)){
+					for (int runMBCheck = higherMB; runMBCheck > lowerMB; runMBCheck--) {
+						Integer[] testArray = { runMBCheck, runMBCheck - 1 };
+						if (!deepContains(tempBlockConnectionsList, testArray)) {
 							unbrokenRun = false;
 						}
 					}
 					// Normal (easy) case
-					if(unbrokenRun){
+					if (unbrokenRun) {
 						return calcConfCleanRunLinkedPreceding(var1, var2);
 					} else {
-						// There are at least two branches of LP and the vars are on different branches (difficult case)
-						
+						// There are at least two branches of LP and the vars
+						// are on different branches (difficult case)
+
 						// Find nearest block that both vars connect to
 						Set<Integer> var1LinkedBlocks = new HashSet<Integer>();
 						Set<Integer> var2LinkedBlocks = new HashSet<Integer>();
@@ -373,60 +383,64 @@ public class HaplotypeBlock {
 						// Create set of blocks that var1 goes through
 						var1LinkedBlocks = findLinkedBlocks(var1MB, tempBlockConnectionsList, var1LinkedBlocks);
 						var2LinkedBlocks = findLinkedBlocks(var2MB, tempBlockConnectionsList, var2LinkedBlocks);
-						// intersectionLinkedBlocks now contains intersection blocks
+						// intersectionLinkedBlocks now contains intersection
+						// blocks
 						intersectionLinkedBlocks = var1LinkedBlocks;
 						intersectionLinkedBlocks.retainAll(var2LinkedBlocks);
 						// determine closest block
 						int closestCommonBlock = Integer.MAX_VALUE;
-						for(int blockNumber : intersectionLinkedBlocks){
-							if(blockNumber < closestCommonBlock){
+						for (int blockNumber : intersectionLinkedBlocks) {
+							if (blockNumber < closestCommonBlock) {
 								closestCommonBlock = blockNumber;
 							}
 						}
 						// Grab variant from closest block
 						VariantContext commonBlockVar1 = null;
 						VariantContext commonBlockVar2 = null;
-						for(VariantContext closestCommonVars : mergedBlockVars.get(closestCommonBlock)){
-							if(closestCommonVars.hasAttribute("linkedPreceding")){
-								int connectedBlock = ((VariantContext) closestCommonVars.getAttribute("linkedPreceding")).getAttributeAsInt("mergedBlocks", 0);
-								if(var1LinkedBlocks.contains(connectedBlock)){
+						for (VariantContext closestCommonVars : mergedBlockVars.get(closestCommonBlock)) {
+							if (closestCommonVars.hasAttribute("linkedPreceding")) {
+								int connectedBlock = this
+										.getSimVC((VariantContext) closestCommonVars.getAttribute("linkedPreceding"))
+										.getAttributeAsInt("mergedBlocks", 0);
+								if (var1LinkedBlocks.contains(connectedBlock)) {
 									commonBlockVar1 = closestCommonVars;
 								}
-								if(var2LinkedBlocks.contains(connectedBlock)){
+								if (var2LinkedBlocks.contains(connectedBlock)) {
 									commonBlockVar2 = closestCommonVars;
 								}
 							}
 						}
-						if(commonBlockVar1 == null || commonBlockVar2 == null){
+						if (commonBlockVar1 == null || commonBlockVar2 == null) {
 							throw new Exception("commonBlockVar1 or commonBlockVar2 is null!");
 						}
-						
-						//Calc confidence between var and its connecting var in the common block
+
+						// Calc confidence between var and its connecting var in
+						// the common block
 						confP1 = calcConfCleanRunLinkedPreceding(var1, commonBlockVar1);
 						confP2 = calcConfCleanRunLinkedPreceding(var2, commonBlockVar2);
-						
+
 						double finalConf = confP1.confidence() * confP2.confidence();
 						int finalSteps = confP1.steps() + confP2.steps();
 
 						return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
 					}
-				} else if(foundRun1){
+				} else if (foundRun1) {
 					VariantContext earliestTrioVar = null;
 					int earliestMergeBlock = Integer.MAX_VALUE;
-					for(VariantContext posEarliestTrio : tempTrioVarList){
+					for (VariantContext posEarliestTrio : tempTrioVarList) {
 						int posEarliestMB = posEarliestTrio.getAttributeAsInt("mergedBlocks", Integer.MAX_VALUE);
-						if(posEarliestMB < earliestMergeBlock){
+						if (posEarliestMB < earliestMergeBlock) {
 							earliestMergeBlock = posEarliestMB;
 							earliestTrioVar = posEarliestTrio;
 						}
 					}
 					confP1 = calcConfCleanRunLinkedPreceding(var1, earliestTrioVar);
-				} else if(foundRun2){
+				} else if (foundRun2) {
 					VariantContext earliestTrioVar = null;
 					int earliestMergeBlock = Integer.MAX_VALUE;
-					for(VariantContext posEarliestTrio : tempTrioVarList){
+					for (VariantContext posEarliestTrio : tempTrioVarList) {
 						int posEarliestMB = posEarliestTrio.getAttributeAsInt("mergedBlocks", Integer.MAX_VALUE);
-						if(posEarliestMB < earliestMergeBlock){
+						if (posEarliestMB < earliestMergeBlock) {
 							earliestMergeBlock = posEarliestMB;
 							earliestTrioVar = posEarliestTrio;
 						}
@@ -434,43 +448,157 @@ public class HaplotypeBlock {
 					confP2 = calcConfCleanRunLinkedPreceding(var2, earliestTrioVar);
 				}
 				tempTrioVarList = new ArrayList<VariantContext>();
-				tempBlockConnectionsList = new ArrayList<int[]>();
+				tempBlockConnectionsList = new ArrayList<Integer[]>();
 				foundRun1 = false;
 				foundRun2 = false;
 			}
 			tempVarConList = mergedBlockVars.get(curMergeBC);
-			if(curMergeBC == var1MB){
+			if (curMergeBC == var1MB) {
 				foundRun1 = true;
-			} else if (curMergeBC == var2MB){
+			} else if (curMergeBC == var2MB) {
 				foundRun2 = true;
 			}
-			//Search for linkedPairs and trioVars
-			for(VariantContext blockVar : tempVarConList){
-				if(blockVar.hasAttribute("TrioConfidence")){
+			// Search for linkedPairs and trioVars
+			for (VariantContext blockVar : tempVarConList) {
+				if (blockVar.getGenotype(PATIENT_ID).hasAnyAttribute("TrioConfidence")) {
 					tempTrioVarList.add(blockVar);
 				}
-				if(blockVar.hasAttribute("linkedPreceding")){
+				if (blockVar.hasAttribute("linkedPreceding")) {
 					linkedPrecedingCount++;
 					// [0] = Upstream MB, [1] = Downstream MB
-					int[] curMergeBCLPTuple = {curMergeBC, ((VariantContext) blockVar.getAttribute("linkedPreceding")).getAttributeAsInt("mergedBlocks", 0)};
+					Integer[] curMergeBCLPTuple = { curMergeBC,
+							this.getSimVC((VariantContext) blockVar.getAttribute("linkedPreceding"))
+									.getAttributeAsInt("mergedBlocks", 0) };
 					tempBlockConnectionsList.add(curMergeBCLPTuple);
 				}
 			}
 			linkedPrecedingCount--;
 		}
-		if(confP1 == null || confP2 == null){
-			throw new Exception("Either both var MBs weren't found, or necessary trio vars missing");			
+		// End of run
+		if (linkedPrecedingCount == 0) {
+			linkedPrecedingCount = 1;
+			// Both vars found in run, calc distance between
+			if (foundRun1 && foundRun2) {
+				if (var1MB > var2MB) {
+					higherMB = var1MB;
+					lowerMB = var2MB;
+				} else {
+					higherMB = var2MB;
+					lowerMB = var1MB;
+				}
+				// Check if easy or hard case
+				boolean unbrokenRun = true;
+				for (int runMBCheck = higherMB; runMBCheck > lowerMB; runMBCheck--) {
+					Integer[] testArray = { runMBCheck, runMBCheck - 1 };
+					if (!deepContains(tempBlockConnectionsList, testArray)) {
+						unbrokenRun = false;
+					}
+				}
+				// Normal (easy) case
+				if (unbrokenRun) {
+					return calcConfCleanRunLinkedPreceding(var1, var2);
+				} else {
+					// There are at least two branches of LP and the vars are on
+					// different branches (difficult case)
+
+					// Find nearest block that both vars connect to
+					Set<Integer> var1LinkedBlocks = new HashSet<Integer>();
+					Set<Integer> var2LinkedBlocks = new HashSet<Integer>();
+					Set<Integer> intersectionLinkedBlocks = new HashSet<Integer>();
+					// Create set of blocks that var goes through
+					var1LinkedBlocks = findLinkedBlocks(var1MB, tempBlockConnectionsList, var1LinkedBlocks);
+					var2LinkedBlocks = findLinkedBlocks(var2MB, tempBlockConnectionsList, var2LinkedBlocks);
+					// intersectionLinkedBlocks now contains intersection blocks
+					intersectionLinkedBlocks = var1LinkedBlocks;
+					intersectionLinkedBlocks.retainAll(var2LinkedBlocks);
+					// determine closest block
+					int closestCommonBlock = Integer.MAX_VALUE;
+					for (int blockNumber : intersectionLinkedBlocks) {
+						if (blockNumber < closestCommonBlock) {
+							closestCommonBlock = blockNumber;
+						}
+					}
+					// Grab variant from closest block
+					VariantContext commonBlockVar1 = null;
+					VariantContext commonBlockVar2 = null;
+					for (VariantContext closestCommonVars : mergedBlockVars.get(closestCommonBlock)) {
+						if (closestCommonVars.hasAttribute("linkedPreceding")) {
+							int connectedBlock = this
+									.getSimVC((VariantContext) closestCommonVars.getAttribute("linkedPreceding"))
+									.getAttributeAsInt("mergedBlocks", 0);
+							if (var1LinkedBlocks.contains(connectedBlock)) {
+								commonBlockVar1 = closestCommonVars;
+							}
+							if (var2LinkedBlocks.contains(connectedBlock)) {
+								commonBlockVar2 = closestCommonVars;
+							}
+						}
+					}
+					if (commonBlockVar1 == null || commonBlockVar2 == null) {
+						throw new Exception("commonBlockVar1 or commonBlockVar2 is null!");
+					}
+
+					// Calc confidence between var and its connecting var in the
+					// common block
+					confP1 = calcConfCleanRunLinkedPreceding(var1, commonBlockVar1);
+					confP2 = calcConfCleanRunLinkedPreceding(var2, commonBlockVar2);
+
+					double finalConf = confP1.confidence() * confP2.confidence();
+					int finalSteps = confP1.steps() + confP2.steps();
+
+					return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
+				}
+			} else if (foundRun1) {
+				VariantContext earliestTrioVar = null;
+				int earliestMergeBlock = Integer.MAX_VALUE;
+				for (VariantContext posEarliestTrio : tempTrioVarList) {
+					int posEarliestMB = posEarliestTrio.getAttributeAsInt("mergedBlocks", Integer.MAX_VALUE);
+					if (posEarliestMB < earliestMergeBlock) {
+						earliestMergeBlock = posEarliestMB;
+						earliestTrioVar = posEarliestTrio;
+					}
+				}
+				confP1 = calcConfCleanRunLinkedPreceding(var1, earliestTrioVar);
+			} else if (foundRun2) {
+				VariantContext earliestTrioVar = null;
+				int earliestMergeBlock = Integer.MAX_VALUE;
+				for (VariantContext posEarliestTrio : tempTrioVarList) {
+					int posEarliestMB = posEarliestTrio.getAttributeAsInt("mergedBlocks", Integer.MAX_VALUE);
+					if (posEarliestMB < earliestMergeBlock) {
+						earliestMergeBlock = posEarliestMB;
+						earliestTrioVar = posEarliestTrio;
+					}
+				}
+				confP2 = calcConfCleanRunLinkedPreceding(var2, earliestTrioVar);
+			}
+			tempTrioVarList = new ArrayList<VariantContext>();
+			tempBlockConnectionsList = new ArrayList<Integer[]>();
+			foundRun1 = false;
+			foundRun2 = false;
 		}
-		
+		if (confP1 == null || confP2 == null) {
+			throw new Exception("Either both var MBs weren't found, or necessary trio vars missing");
+		}
+
 		double finalConf = confP1.confidence() * confP2.confidence();
 		int finalSteps = confP1.steps() + confP2.steps();
 
 		return new ConfidencePair<Double, Integer>(finalConf, finalSteps);
 	}
 	
-	private Set<Integer> findLinkedBlocks(int searchedForBlock, ArrayList<int[]> tempBlockConnectionsList, Set<Integer> resultSet){
-		for(int[] linkedPair : tempBlockConnectionsList){
-			if(linkedPair[1] == searchedForBlock){
+	public static boolean deepContains(List<Integer[]> list, Integer[] probe) {
+	    for (Integer[] element : list) {
+	      if (Arrays.deepEquals(element, probe)) {
+	        return true;
+	      }
+	    }
+	    return false;
+	  }
+
+	private Set<Integer> findLinkedBlocks(int searchedForBlock, ArrayList<Integer[]> tempBlockConnectionsList,
+			Set<Integer> resultSet) {
+		for (Integer[] linkedPair : tempBlockConnectionsList) {
+			if (linkedPair[1] == searchedForBlock) {
 				int connectedBlock = linkedPair[0];
 				resultSet.add(connectedBlock);
 				return findLinkedBlocks(connectedBlock, tempBlockConnectionsList, resultSet);
@@ -478,11 +606,14 @@ public class HaplotypeBlock {
 		}
 		return resultSet;
 	}
-	
-	private ConfidencePair<Double, Integer> calcConfCleanRunLinkedPreceding(VariantContext vc1, VariantContext vc2) throws Exception{
+
+	private ConfidencePair<Double, Integer> calcConfCleanRunLinkedPreceding(VariantContext vc1, VariantContext vc2)
+			throws Exception {
 		double product = 1.0;
 
-		if (vc1 == vc2) {
+		if (vc1.getStart() == vc2.getStart() && vc1.getContig().equals(vc2.getContig())
+				&& vc1.getReference().equals(vc2.getReference())
+				&& vc1.getAlternateAllele(0).equals(vc2.getAlternateAllele(0))) {
 			return new ConfidencePair<Double, Integer>(1.0, 0);
 		}
 
@@ -503,11 +634,11 @@ public class HaplotypeBlock {
 			}
 
 			VariantContext linkerV = calcLinkerVar(linkerBlockVC);
-			
+
 			ConfidencePair<Double, Integer> confP1 = calcConfCleanRunLinkedPreceding(linkerV, linkerBlockVC);
 			ConfidencePair<Double, Integer> confP2 = calcConfCleanRunLinkedPreceding(otherBlockVC,
 					(VariantContext) linkerV.getAttribute("linkedPreceding"));
-			
+
 			double finalConf = confP1.confidence() * confP2.confidence()
 					* linkerV.getAttributeAsDouble("linkedConfidence", -1.0);
 			int finalSteps = 1 + confP1.steps() + confP2.steps();
@@ -526,7 +657,7 @@ public class HaplotypeBlock {
 
 		// Go from furthest VC to earliest VC, multiplying confidence along the
 		// way
-		int cnt = 1;
+		int cnt = 0;
 		while (curVC.getStart() != end) {
 			product = product * (double) curVC.getGenotype(PATIENT_ID).getAnyAttribute("ReadConfidence");
 			cnt++;
@@ -536,10 +667,10 @@ public class HaplotypeBlock {
 
 		return new ConfidencePair<Double, Integer>(product, cnt);
 	}
-	
+
 	private VariantContext calcLinkerVar(VariantContext linkerBlockVC) throws Exception {
 		VariantContext linkerVar = null;
-		
+
 		for (VariantContext v : this.getAllVariants()) {
 			if (v.hasAttribute("linkedPreceding")
 					&& v.getAttributeAsInt("mergedBlocks", -3) == linkerBlockVC.getAttributeAsInt("mergedBlocks", -4)) {
