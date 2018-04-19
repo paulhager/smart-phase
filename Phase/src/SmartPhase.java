@@ -390,6 +390,10 @@ public class SmartPhase {
 			System.out.println("INTERVAL CONTIG: " + intervalContig);
 			System.out.println("INTERVAL START: " + intervalStart);
 			System.out.println("INTERVAL END: " + intervalEnd);
+			
+			if(intervalStart == 1635658){
+				System.out.println();
+			}
 
 			System.out.println("Filtered Variants found in interval: " + regionFiltVariantList.size());
 
@@ -950,6 +954,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
+							newVar = new VariantContextBuilder(newVar).attribute("mergedBlocks", hapBlock.getHighestMB()).make();
 							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
@@ -968,6 +973,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
+							newVar = new VariantContextBuilder(newVar).attribute("mergedBlocks", hapBlock.getHighestMB()).make();
 							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
@@ -991,6 +997,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
+							newVar = new VariantContextBuilder(newVar).attribute("mergedBlocks", hapBlock.getHighestMB()).make();
 							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
@@ -1010,6 +1017,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
+							newVar = new VariantContextBuilder(newVar).attribute("mergedBlocks", hapBlock.getHighestMB()).make();
 							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
@@ -1026,7 +1034,7 @@ public class SmartPhase {
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
 
-			if(secondVar.getStart() == 100550315){
+			if(secondVar.getStart() == 1157376){
 				System.out.println();
 			}
 			
@@ -1582,7 +1590,7 @@ public class SmartPhase {
 	}
 
 	private static ArrayList<HaplotypeBlock> mergeBlocks(ArrayList<VariantContext> trioPhasedVars,
-			ArrayList<HaplotypeBlock> currentBlocks) throws Exception {
+			ArrayList<HaplotypeBlock> currentBlocks) throws Exception {		
 		HaplotypeBlock mergeBlock = null;
 		Iterator<HaplotypeBlock> hapBlockIt = currentBlocks.iterator();
 		HaplotypeBlock curBlock = null;
@@ -1651,7 +1659,7 @@ public class SmartPhase {
 				else {
 					posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
 							prevOppStrandMerge, mergeBlockCntr);
-					posMergeBlockCntr2 = mergeBlockCntr = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+					posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
 							prevStrandMerge, mergeBlockCntr);
 					mergeBlockCntr = (posMergeBlockCntr1 > posMergeBlockCntr2) ? posMergeBlockCntr1 : posMergeBlockCntr2;
 				}
