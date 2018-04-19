@@ -376,7 +376,13 @@ public class SmartPhase {
 			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
 					intervalStart, intervalEnd);
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
-			variantsToPhase.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
+			
+				
+			variantsToPhase.removeIf(v -> v.getGenotype(PATIENT_ID).isHom() 
+								|| v.getGenotype(PATIENT_ID).isNoCall() 
+								|| v.getGenotype(PATIENT_ID).isNonInformative() 
+								|| ((v.getGenotype(PATIENT_ID).getAllele(0).isReference() || v.getGenotype(PATIENT_ID).getAllele(0).isNoCall()) 
+									&& (v.getGenotype(PATIENT_ID).getAllele(1).isReference() || v.getGenotype(PATIENT_ID).getAllele(1).isNoCall())));
 			regionAllVariantIterator.close();
 			regionAllVariantIterator = null;
 
@@ -875,10 +881,6 @@ public class SmartPhase {
 		for (int i = 0; i < variantsToPhase.size() - 1; i++) {
 			firstVar = variantsToPhase.get(i);
 			secondVar = variantsToPhase.get(i + 1);
-			
-			if(firstVar.getStart() == 31238589){
-				System.out.println();
-			}
 
 			// Keep track if there is at least one trioVar in block
 			// (blockTrioVar1) and keep an eye out
@@ -948,7 +950,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
@@ -966,7 +968,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
@@ -989,7 +991,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
@@ -1008,7 +1010,7 @@ public class SmartPhase {
 									.attribute("Preceding", firstVar).make();
 
 							hapBlock.addVariant(newVar, firstVarStrand);
-							HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks,
+							HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks,
 									newVar);
 							if (returnedBlock != null) {
 								hapBlock = returnedBlock;
@@ -1024,6 +1026,10 @@ public class SmartPhase {
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
 
+			if(secondVar.getStart() == 100550315){
+				System.out.println();
+			}
+			
 			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
@@ -1044,6 +1050,7 @@ public class SmartPhase {
 						.attribute("Preceding", null).make();
 				hapBlock.addVariant(newVar, HaplotypeBlock.Strand.STRAND1);
 			}
+			newVar = new VariantContextBuilder(newVar).attribute("mergedBlocks", hapBlock.getHighestMB()).make();
 
 			// SecondVar is start of another exon. Check if can merge with other
 			// block
@@ -1076,7 +1083,7 @@ public class SmartPhase {
 							hapBlock.replaceVariant(linkingVariant, newVar, hapBlock.getStrand(newVar));
 							globalRNAseqCount++;
 
-							int newMergeBlock = (int) hb.getSimVC(endOfFirstExon).getAttribute("mergedBlocks");
+							int newMergeBlock = hb.getHighestMB();;
 							newMergeBlock++;
 
 							if (cisCounter > transCounter) {
@@ -1085,6 +1092,7 @@ public class SmartPhase {
 								hb.addVariantsMerge(
 										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 										hb.getOppStrand(ex1Strand), newMergeBlock);
+								hb.updateHMC();
 								hapBlock = hb;
 							} else if (transCounter > cisCounter) {
 								hb.addVariantsMerge(hapBlock.getStrandVariants(hapBlock.getStrandSimVC(secondVar)),
@@ -1092,6 +1100,7 @@ public class SmartPhase {
 								hb.addVariantsMerge(
 										hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 										ex1Strand, newMergeBlock);
+								hb.updateHMC();
 								hapBlock = hb;
 							}
 						}
@@ -1100,7 +1109,7 @@ public class SmartPhase {
 
 			}
 
-			HaplotypeBlock returnedBlock = mergePairedReads(secondVar, hapBlock, intervalBlocks, newVar);
+			HaplotypeBlock returnedBlock = mergePairedReads(firstVar, secondVar, hapBlock, intervalBlocks, newVar);
 			if (returnedBlock != null) {
 				hapBlock = returnedBlock;
 			}
@@ -1114,7 +1123,7 @@ public class SmartPhase {
 	}
 
 	// Merge blocks if variant is part of read pair
-	private static HaplotypeBlock mergePairedReads(VariantContext secondVar, HaplotypeBlock hapBlock,
+	private static HaplotypeBlock mergePairedReads(VariantContext firstVar, VariantContext secondVar, HaplotypeBlock hapBlock,
 			ArrayList<HaplotypeBlock> intervalBlocks, VariantContext oldVar) throws Exception {
 		ListIterator<HaplotypeBlock> intervalBlocksIterator = null;
 		if(intervalBlocks.size()>0){
@@ -1147,8 +1156,9 @@ public class SmartPhase {
 					VariantContext linkingVariant = new VariantContextBuilder(oldVar)
 							.attribute("linkedPreceding", hb.getSimVC(connectionVar))
 							.attribute("linkedConfidence", confidence).make();
-					int newMergeBlock = (int) hb.getSimVC(connectionVar).getAttribute("mergedBlocks");
+					int newMergeBlock = hb.getHighestMB();
 					newMergeBlock++;
+					
 					oldVar = hapBlock.getSimVC(oldVar);
 
 					if (cisCounter > transCounter) {
@@ -1159,6 +1169,7 @@ public class SmartPhase {
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 								hb.getOppStrand(conVarStrand), newMergeBlock);
+						hb.updateHMC();
 						return hb;
 					} else if (transCounter > cisCounter) {
 						intervalBlocksIterator.remove();
@@ -1168,6 +1179,7 @@ public class SmartPhase {
 						hb.addVariantsMerge(
 								hapBlock.getStrandVariants(hb.getOppStrand(hapBlock.getStrandSimVC(secondVar))),
 								conVarStrand, newMergeBlock);
+						hb.updateHMC();
 						return hb;
 					} else {
 						// System.out.println("WHATTTT");
