@@ -20,4 +20,8 @@ public class ConfidencePair<D, I> {
 	public void setConfidence(D newConf){
 		this.confidence = newConf;
 	}
+	
+	public void setSteps(I newSteps){
+		this.steps = newSteps;
+	}
 }
