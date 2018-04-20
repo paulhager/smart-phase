@@ -1251,10 +1251,14 @@ public class SmartPhase {
 			boolean insertVar = (v.isSimpleInsertion()) ? true : false;
 			boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + 1,
 					false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
-
+			
 			Allele allele = patGT.getAllele(1);
-			if (!allele.isNonReference()) {
-				throw new Error("Only normalized vcf files are allowed.");
+			if (!allele.basesMatch(v.getAlternateAllele(0))) {
+				if(patGT.getAllele(0).basesMatch(v.getAlternateAllele(0))){
+					allele = patGT.getAllele(0);					
+				} else {
+					throw new Exception("Neither patGT allele 1 nor allele 2 match the first alternative allele of the variant. Either the vcf is not normalized or this variant shouldn't be here.");
+				}
 			}
 			// Calculate correct position in read to be compared to
 			// alternative alleles in variant
@@ -1273,6 +1277,10 @@ public class SmartPhase {
 				if (subStrEnd == -1) {
 					continue;
 				}
+			}
+			
+			if(subStrStart > subStrEnd){
+				throw new Exception("Relative start of variant in read is later than end. Something went wrong.");
 			}
 
 			// Determine variants closest to intron
@@ -1402,6 +1410,11 @@ public class SmartPhase {
 		// Read in .ped file and retrieve maternal/paternal IDs
 		String motherID = familyPed.get(PATIENT_ID).getMaternalId();
 		String fatherID = familyPed.get(PATIENT_ID).getPaternalId();
+		
+		if(motherID.equals("0") || fatherID.equals("0")){
+			System.err.println("Mother and/or father not found in PED file. Either missing or PED file corrupt. Skipping trio phasing.");
+			return new ArrayList<VariantContext>();
+		}
 
 		ArrayList<VariantContext> outVariants = new ArrayList<VariantContext>();
 		// Iterate over all variants in region and phase the patient's genotype
