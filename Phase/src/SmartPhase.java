@@ -64,6 +64,8 @@ public class SmartPhase {
 
 	static ArrayList<VariantContext> seenInRead;
 	static ArrayList<VariantContext> NOT_SeenInRead;
+	
+	static HashSet<VariantContext> neverSeenVariants = new HashSet<VariantContext>();
 
 	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter;
 	static HashMap<VariantContext, VariantContext> pairedReadsVarMaps = new HashMap<VariantContext, VariantContext>();
@@ -376,7 +378,6 @@ public class SmartPhase {
 			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
 					intervalStart, intervalEnd);
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
-			
 				
 			variantsToPhase.removeIf(v -> v.getGenotype(PATIENT_ID).isHom() 
 								|| v.getGenotype(PATIENT_ID).isNoCall() 
@@ -402,6 +403,9 @@ public class SmartPhase {
 						.println("No variants found in VCF in this interval, but more than 2 filtered variants found.");
 				continue;
 			}
+			
+			neverSeenVariants.clear();
+			variantsToPhase.forEach(v -> neverSeenVariants.add(v));
 
 			ArrayList<VariantContext> trioPhasedVariants = null;
 
@@ -441,6 +445,7 @@ public class SmartPhase {
 						boolean notPhased = true;
 						boolean InnocuousFlag = false;
 						boolean isTrans = false;
+						boolean neverSeenFlag = false;
 						VariantContext innerVariant = regionFiltVariantList.get(innerCount);
 
 						double totalConfidence = 0;
@@ -515,7 +520,11 @@ public class SmartPhase {
 							} else {
 								totalConfidence = 0;
 							}
-
+						}
+						
+						if(notPhased && neverSeenVariants.contains(outerVariant)){
+							neverSeenFlag = true;
+							System.err.println("Never saw variant: "+outerVariant.toString());
 						}
 
 						if (!foundInner) {
@@ -531,6 +540,7 @@ public class SmartPhase {
 						flagBits.set(0, isTrans);
 						flagBits.set(1, notPhased);
 						flagBits.set(2, InnocuousFlag);
+						flagBits.set(3, neverSeenFlag);
 
 						// Parse integer flag from bitset
 						int flag = 0;
@@ -1290,6 +1300,7 @@ public class SmartPhase {
 						varExon1 = v;
 						if ((!delVar || del) && (!insertVar || insert)) {
 							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								neverSeenVariants.remove(v);
 								varEx1Seen = true;
 							}
 						}
@@ -1299,6 +1310,7 @@ public class SmartPhase {
 						varEx1Seen = false;
 						if ((!delVar || del) && (!insertVar || insert)) {
 							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								neverSeenVariants.remove(v);
 								varEx1Seen = true;
 							}
 						}
@@ -1310,6 +1322,7 @@ public class SmartPhase {
 					if (varExon2 == null) {
 						if ((!delVar || del) && (!insertVar || insert)) {
 							if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+								neverSeenVariants.remove(v);
 								if (varEx1Seen) {
 									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exVarList, v, r,
 											subStrStart, subStrEnd, Phase.CIS);
@@ -1344,6 +1357,7 @@ public class SmartPhase {
 
 				// Variant is found in read
 				if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
+					neverSeenVariants.remove(v);
 
 					seenInRead.add(v);
 					// Increase CIS counter for all also found with this
