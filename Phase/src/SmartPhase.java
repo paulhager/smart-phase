@@ -522,9 +522,14 @@ public class SmartPhase {
 							}
 						}
 						
-						if(notPhased && neverSeenVariants.contains(outerVariant)){
-							neverSeenFlag = true;
-							System.err.println("Never saw variant: "+outerVariant.toString());
+						if(notPhased){
+							if(neverSeenVariants.contains(outerVariant)) {
+								neverSeenFlag = true;
+								System.err.println("Never saw variant: "+outerVariant.toString());		
+							} else if(neverSeenVariants.contains(innerVariant)){
+								neverSeenFlag = true;
+								System.err.println("Never saw variant: "+innerVariant.toString());	
+							}
 						}
 
 						if (!foundInner) {
