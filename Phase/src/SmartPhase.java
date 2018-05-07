@@ -418,6 +418,9 @@ public class SmartPhase {
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
 			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
 			variantsToPhase = null;
+			for(VariantContext v : neverSeenVariants){
+				System.err.println("Never saw variant: "+v.toString());
+			}
 
 			// If trio information is available, use parents GT to resolve phase
 			// where possible and then merge blocks
@@ -523,12 +526,11 @@ public class SmartPhase {
 						}
 						
 						if(notPhased){
-							if(neverSeenVariants.contains(outerVariant)) {
+							for(VariantContext notSeenVar : neverSeenVariants){
+								if((notSeenVar.getStart() == outerVariant.getStart() && notSeenVar.getReference().equals(outerVariant.getReference()) && notSeenVar.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0)))
+										 || (notSeenVar.getStart() == innerVariant.getStart() && notSeenVar.getReference().equals(innerVariant.getReference()) && notSeenVar.getAlternateAllele(0).equals(innerVariant.getAlternateAllele(0)))){
 								neverSeenFlag = true;
-								System.err.println("Never saw variant: "+outerVariant.toString());		
-							} else if(neverSeenVariants.contains(innerVariant)){
-								neverSeenFlag = true;
-								System.err.println("Never saw variant: "+innerVariant.toString());	
+								}
 							}
 						}
 
