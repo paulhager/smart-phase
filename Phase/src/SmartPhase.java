@@ -1678,7 +1678,81 @@ public class SmartPhase {
 		int mergeBlockCntr = 2;
 		int posMergeBlockCntr1;
 		int posMergeBlockCntr2;
-		varsLoop: for (VariantContext trioVar : trioPhasedVars) {
+		
+		HapBlockLoop:
+		while(hapBlockIt.hasNext()){
+			curBlock = hapBlockIt.next();
+			
+			for (VariantContext trioVar : trioPhasedVars) {
+				if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
+					continue;
+				}
+				
+				if(trioVar.getStart() > curBlock.getBlockEnd()){
+					continue HapBlockLoop;
+				}
+				
+				if (curBlock.setPhased(trioVar)) {
+					// Initialize mergeblock to first block containing trio var
+					if (mergeBlock == null) {
+						mergeBlock = curBlock;
+						mergeBlockCntr = mergeBlock.getHighestMB();
+						mergeBlockCntr++;
+						prevTrioVar = trioVar;
+						if (hapBlockIt.hasNext()) {
+							hapBlockIt.remove();
+							curBlock = hapBlockIt.next();
+						} else {
+							break HapBlockLoop;
+						}
+						continue HapBlockLoop;
+					}
+					
+					// [0] is always mother. [1] is always father
+					String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+					String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
+
+					HaplotypeBlock.Strand prevStrandMerge = mergeBlock.getStrandSimVC(prevTrioVar);
+					HaplotypeBlock.Strand prevOppStrandMerge = mergeBlock.getOppStrand(prevStrandMerge);
+
+					HaplotypeBlock.Strand strandCur = curBlock.getStrandSimVC(trioVar);
+					HaplotypeBlock.Strand oppStrandCur = curBlock.getOppStrand(strandCur);
+
+					if (prevStrandMerge == null || prevOppStrandMerge == null) {
+						throw new Exception("STRAND IS NULL");
+					}
+
+					// CIS
+					if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
+							|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+						posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
+								prevStrandMerge, mergeBlockCntr);
+						posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+								prevOppStrandMerge, mergeBlockCntr);
+						mergeBlockCntr = (posMergeBlockCntr1 > posMergeBlockCntr2) ? posMergeBlockCntr1
+								: posMergeBlockCntr2;
+					}
+					// TRANS
+					else {
+						posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
+								prevOppStrandMerge, mergeBlockCntr);
+						posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
+								prevStrandMerge, mergeBlockCntr);
+						mergeBlockCntr = (posMergeBlockCntr1 > posMergeBlockCntr2) ? posMergeBlockCntr1
+								: posMergeBlockCntr2;
+					}
+
+					mergeBlockCntr++;
+					prevTrioVar = trioVar;
+					
+					continue HapBlockLoop;
+				}
+				
+			}
+		}
+		/*
+		varsLoop: 
+		for (VariantContext trioVar : trioPhasedVars) {
 
 			if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 				continue;
@@ -1751,6 +1825,7 @@ public class SmartPhase {
 				}
 			}
 		}
+		*/
 		if (mergeBlock != null) {
 			currentBlocks.add(mergeBlock);
 		}
