@@ -145,8 +145,8 @@ public class SmartPhase {
 			inputPEDIGREE = new File(cmd.getOptionValue("d"));
 			familyPed = PedFile.fromFile(inputPEDIGREE, true);
 		}
-		
-		if(cmd.hasOption("x")){
+
+		if (cmd.hasOption("x")) {
 			REJECT_PHASE = true;
 		}
 
@@ -545,16 +545,20 @@ public class SmartPhase {
 							}
 						}
 
-						if (notPhased) {
-							for (VariantContext notSeenVar : neverSeenVariants) {
-								if ((notSeenVar.getStart() == outerVariant.getStart()
-										&& notSeenVar.getReference().equals(outerVariant.getReference())
-										&& notSeenVar.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0)))
-										|| (notSeenVar.getStart() == innerVariant.getStart()
-												&& notSeenVar.getReference().equals(innerVariant.getReference())
-												&& notSeenVar.getAlternateAllele(0)
-														.equals(innerVariant.getAlternateAllele(0)))) {
-									neverSeenFlag = true;
+						for (VariantContext notSeenVar : neverSeenVariants) {
+							if ((notSeenVar.getStart() == outerVariant.getStart()
+									&& notSeenVar.getReference().equals(outerVariant.getReference())
+									&& notSeenVar.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0)))
+									|| (notSeenVar.getStart() == innerVariant.getStart()
+											&& notSeenVar.getReference().equals(innerVariant.getReference())
+											&& notSeenVar.getAlternateAllele(0)
+													.equals(innerVariant.getAlternateAllele(0)))) {
+								neverSeenFlag = true;
+								if(totalConfidence != 1){
+									notPhased = true;
+									isTrans = false;
+									isCis = false;
+									totalConfidence = 0;
 								}
 							}
 						}
@@ -1080,10 +1084,6 @@ public class SmartPhase {
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
 
-			if (secondVar.getStart() == 1157376) {
-				System.out.println();
-			}
-
 			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
@@ -1270,7 +1270,7 @@ public class SmartPhase {
 		trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
 
 		/*
-		 * // Read covers less than 2 variants and is thus not of interest. OLD.
+		 * Read covers less than 2 variants and is thus not of interest. OLD.
 		 * Because of paired end reads, a single variant can still technically
 		 * be of use if (trimPosVarsInRead.size() < 2) { continue; }
 		 */
@@ -1291,12 +1291,13 @@ public class SmartPhase {
 
 			// Check if deletion is on this read and if variant is deletion
 			// variant
-			boolean del = (r.getReadPositionAtReferencePosition(v.getEnd(), false) == 0) ? true : false;
+			boolean del = (r.getReadPositionAtReferencePosition(v.getStart() + v.getAlternateAllele(0).length() - 1,
+					false) == 0) ? true : false;
 			boolean delVar = (v.isSimpleDeletion()) ? true : false;
 
 			// Determine if insert
 			boolean insertVar = (v.isSimpleInsertion()) ? true : false;
-			boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + 1,
+			boolean insert = (r.getReadPositionAtReferencePosition(v.getStart() + v.getAlternateAllele(0).length() - 1,
 					false) != r.getReadPositionAtReferencePosition(v.getStart(), false) + 1) ? true : false;
 
 			Allele allele = patGT.getAllele(1);
@@ -1589,7 +1590,7 @@ public class SmartPhase {
 			varFlagBits.set(3, fatherContainsVar);
 
 			// Check if already phased
-			if(!REJECT_PHASE){
+			if (!REJECT_PHASE) {
 				if (patientGT.isPhased()) {
 					VariantContext vc = null;
 					if (innoc) {
@@ -1600,12 +1601,12 @@ public class SmartPhase {
 						vc = new VariantContextBuilder(var)
 								.genotypes(new GenotypeBuilder(patientGT).attribute("TrioConfidence", 1.0).make())
 								.attribute("VarFlags", varFlagBits).make();
-						
+
 					}
 					outVariants.add(vc);
 					vc = null;
 					continue;
-				}				
+				}
 			}
 
 			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet()) {
@@ -1678,20 +1679,19 @@ public class SmartPhase {
 		int mergeBlockCntr = 2;
 		int posMergeBlockCntr1;
 		int posMergeBlockCntr2;
-		
-		HapBlockLoop:
-		while(hapBlockIt.hasNext()){
+
+		HapBlockLoop: while (hapBlockIt.hasNext()) {
 			curBlock = hapBlockIt.next();
-			
+
 			for (VariantContext trioVar : trioPhasedVars) {
 				if (!trioVar.getGenotype(PATIENT_ID).isPhased() && trioVar.getAttributeAsBoolean("Innocuous", false)) {
 					continue;
 				}
-				
-				if(trioVar.getStart() > curBlock.getBlockEnd()){
+
+				if (trioVar.getStart() > curBlock.getBlockEnd()) {
 					continue HapBlockLoop;
 				}
-				
+
 				if (curBlock.setPhased(trioVar)) {
 					// Initialize mergeblock to first block containing trio var
 					if (mergeBlock == null) {
@@ -1707,7 +1707,7 @@ public class SmartPhase {
 						}
 						continue HapBlockLoop;
 					}
-					
+
 					// [0] is always mother. [1] is always father
 					String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
 					String[] curTrioSplit = trioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
@@ -1744,10 +1744,10 @@ public class SmartPhase {
 
 					mergeBlockCntr++;
 					prevTrioVar = trioVar;
-					
+
 					continue HapBlockLoop;
 				}
-				
+
 			}
 		}
 		if (mergeBlock != null) {
@@ -1762,16 +1762,19 @@ public class SmartPhase {
 		Iterator<HaplotypeBlock> hapBlockIt = currentBlocks.iterator();
 		HaplotypeBlock curBlock = null;
 
-		// Need to look at all vars in all blocks because paired-read-joined blocks now can skip single blocks and all blocks aren't perfectly ordered anymore
-		HapBlockIterator:
-		while (hapBlockIt.hasNext()) {
+		// Need to look at all vars in all blocks because paired-read-joined
+		// blocks now can skip single blocks and all blocks aren't perfectly
+		// ordered anymore
+		HapBlockIterator: while (hapBlockIt.hasNext()) {
 			curBlock = hapBlockIt.next();
 			for (VariantContext tVar : trioPhasedVars) {
-				// Slightly more efficient as those variants that have no chance of being in block aren't examined
-				if(tVar.getStart() > curBlock.getBlockEnd()){
+				// Slightly more efficient as those variants that have no chance
+				// of being in block aren't examined
+				if (tVar.getStart() > curBlock.getBlockEnd()) {
 					continue HapBlockIterator;
 				}
-				// Check if current trio var lands in current block. If yes, check
+				// Check if current trio var lands in current block. If yes,
+				// check
 				// if triple het should be updated
 				if (curBlock.getStrandSimVC(tVar) != null) {
 					if (!tVar.getGenotype(PATIENT_ID).isPhased() && (tVar.getAttributeAsBoolean("Innocuous", false))) {
