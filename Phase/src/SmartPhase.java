@@ -62,12 +62,12 @@ public class SmartPhase {
 	static String prevContig = "";
 	static double[] minMAPQ;
 
-	static ArrayList<VariantContext> seenInRead;
-	static ArrayList<VariantContext> NOT_SeenInRead;
+	static ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
+	static ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
 
 	static HashSet<VariantContext> neverSeenVariants = new HashSet<VariantContext>();
 
-	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter;
+	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
 	static HashMap<VariantContext, VariantContext> pairedReadsVarMaps = new HashMap<VariantContext, VariantContext>();
 
 	static String PATIENT_ID;
@@ -118,7 +118,7 @@ public class SmartPhase {
 		options.addOption("c", false, "This is a cohort set.");
 		options.addOption("y", "physical-phasing", false,
 				"GATK physical phasing info should be used as last-resort phasing.");
-		options.addOption("h", false, "Chromosomes in vcf do not start with string chr.");
+		options.addOption("h", false, "Chromosomes in vcf/bam do not start with string chr.");
 		options.addOption("x", "reject-phase", false, "Don't look at phase already present in vcf");
 
 		CommandLineParser parser = new DefaultParser();
@@ -347,6 +347,7 @@ public class SmartPhase {
 				continue;
 			}
 
+			/*
 			boolean contigSwitch = false;
 			// Contig switched.
 			if (!prevContig.equals(intervalContig)) {
@@ -357,11 +358,27 @@ public class SmartPhase {
 				grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
 				curRecords = new ArrayList<SAMRecord>();
 				for (SamReader sr : samReaderSet) {
-					samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, 250000000));
+					samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, intervalEnd));
 				}
 				contigSwitch = true;
 				prevContig = intervalContig;
 			}
+			*/boolean 
+			contigSwitch = true;
+			
+			for (SAMRecordIterator srIt : samIteratorList) {
+				srIt.close();
+			}
+			samIteratorList.clear();
+			samIteratorList.trimToSize();
+			grabLastRec.clear();
+			curRecords.clear();
+			curRecords.trimToSize();
+			pairedEndReads.clear();
+			for (SamReader sr : samReaderSet) {
+				samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, intervalEnd));
+			}
+			contigSwitch = true;
 
 			// Grab filtered variants within current region
 			ArrayList<VariantContext> regionFiltVariantList = filteredVCFReader.scan(curInterval, contigSwitch);
@@ -428,6 +445,7 @@ public class SmartPhase {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
 				System.out.println("Trio size: " + trioPhasedVariants.size());
 			} else if (PHYSICAL_PHASING) {
+				physicalPhasingPIDMap.clear();
 				physicalPhasing(variantsToPhase.iterator());
 			}
 
@@ -729,7 +747,7 @@ public class SmartPhase {
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
-		int intervalEnd = curInterval.getEnd();
+		int intervalEnd = curInterval.getEnd(); 
 		String intervalContig = curInterval.getContig();
 
 		System.out.println("Variants found in interval: " + variantsToPhase.size());
@@ -739,7 +757,7 @@ public class SmartPhase {
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
 			SAMRecordIterator curIterator = samIteratorList.get(indx);
 			double minQ = minMAPQ[indx];
-
+						
 			// Update curRec to last record looked at by current iterator
 			curRec = grabLastRec.getOrDefault(curIterator, null);
 
@@ -748,15 +766,15 @@ public class SmartPhase {
 
 				curRec = curIterator.next();
 
-				if (curRec.getEnd() >= intervalStart) {
-					readsExamined++;
-				}
-
 				// Only use reads that are mapped and have desired quality
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
 						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
 						|| curRec.getNotPrimaryAlignmentFlag()) {
 					continue;
+				}
+
+				if (curRec.getEnd() >= intervalStart) {
+					readsExamined++;
 				}
 
 				if (curRec.getEnd() >= intervalStart) {
@@ -826,14 +844,16 @@ public class SmartPhase {
 
 		Set<VariantContext> key;
 
-		phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
-		skipIntronCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
+		phaseCounter.clear();
+		skipIntronCounter.clear();
 
 		exonStartVars = new HashMap<VariantContext, VariantContext>();
 
 		for (SAMRecord r : trimmedRecords) {
-			seenInRead = new ArrayList<VariantContext>();
-			NOT_SeenInRead = new ArrayList<VariantContext>();
+			seenInRead.clear();
+			seenInRead.trimToSize();
+			NOT_SeenInRead.clear();
+			NOT_SeenInRead.trimToSize();
 			// More than one paired end read found
 			if (pairedEndReads.containsKey(r.getReadName()) && pairedEndReads.get(r.getReadName()) != null) {
 				ArrayList<SAMRecord> allPairedRecords = pairedEndReads.get(r.getReadName());
@@ -1236,8 +1256,6 @@ public class SmartPhase {
 								conVarStrand, newMergeBlock);
 						hb.updateHMC();
 						return hb;
-					} else {
-						// System.out.println("WHATTTT");
 					}
 				}
 			}
@@ -1446,7 +1464,6 @@ public class SmartPhase {
 			averageQuality = 1.0 - averageQuality;
 		}
 		final double finalAverageQuality = averageQuality;
-		// System.out.println(finalAverageQuality);
 		for (VariantContext member : group) {
 			HashSet<VariantContext> key = new HashSet<VariantContext>();
 			key.add(v);
@@ -1610,7 +1627,8 @@ public class SmartPhase {
 			}
 
 			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet()) {
-				outVariants.add(new VariantContextBuilder(var).attribute("Innocuous", true).make());
+				// Trip-het can never be phased
+				outVariants.add(new VariantContextBuilder(var).genotypes(new GenotypeBuilder(patientGT).phased(false).make()).attribute("Innocuous", true).make());
 				continue;
 			}
 
