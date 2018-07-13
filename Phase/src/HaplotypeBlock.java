@@ -253,8 +253,12 @@ public class HaplotypeBlock {
 			return multiplyConfidence(vc1, vc2).confidence();
 		}
 
+		
 		// Get final product confidence score using trio
 		ConfidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
+		if(nearestTrioVC1.getGenotype(PATIENT_ID) == null || cpTrio1 == null || nearestTrioVC1 == null || nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence") == null){
+			System.out.println("hi");
+		}
 		cpTrio1.setConfidence(cpTrio1.confidence()
 				* (double) nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 
@@ -280,7 +284,7 @@ public class HaplotypeBlock {
 	private VariantContext findNearestTPhased(VariantContext vc) throws Exception {
 		VariantContext nearestTrioVC = null;
 		// Find nearest trioPhase within block
-		if (vc.getGenotype(PATIENT_ID).isPhased()) {
+		if (vc.getGenotype(PATIENT_ID).isPhased() && vc.getGenotype(PATIENT_ID).hasAnyAttribute("TrioConfidence")) {
 			nearestTrioVC = vc;
 		} else {
 			int mergeB = vc.getAttributeAsInt("mergedBlocks", -1);
@@ -289,7 +293,7 @@ public class HaplotypeBlock {
 			}
 			int distance = Integer.MAX_VALUE;
 			for (VariantContext curVC : this.getAllVariants()) {
-				if (curVC.getGenotype(PATIENT_ID).isPhased() && curVC.getAttributeAsInt("mergedBlocks", -1) == mergeB
+				if (curVC.getGenotype(PATIENT_ID).isPhased() && curVC.getGenotype(PATIENT_ID).hasAnyAttribute("TrioConfidence") && curVC.getAttributeAsInt("mergedBlocks", -1) == mergeB
 						&& distance > Math.abs(vc.getStart() - curVC.getStart())) {
 					distance = Math.abs(vc.getStart() - curVC.getStart());
 					nearestTrioVC = curVC;
@@ -657,7 +661,9 @@ public class HaplotypeBlock {
 									.attribute("TrioConfidence",
 											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
 									.make())
-							.attribute("Innocuous", true).make(), posVC, Strand.STRAND1);
+							.attribute("Innocuous", true).make(), posVC, Strand.STRAND1);					
+					return true;
+
 				} else {
 					this.replaceVariant(new VariantContextBuilder(posVC)
 							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
@@ -665,8 +671,8 @@ public class HaplotypeBlock {
 											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
 									.make())
 							.make(), posVC, Strand.STRAND1);
+					return true;
 				}
-				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
@@ -680,7 +686,8 @@ public class HaplotypeBlock {
 									.attribute("TrioConfidence",
 											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
 									.make())
-							.attribute("Innocuous", true).make(), posVC, Strand.STRAND2);
+							.attribute("Innocuous", true).make(), posVC, Strand.STRAND2);					
+					return true;
 				} else {
 					this.replaceVariant(new VariantContextBuilder(posVC)
 							.genotypes(new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(true)
@@ -688,8 +695,8 @@ public class HaplotypeBlock {
 											trioVar.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"))
 									.make())
 							.make(), posVC, Strand.STRAND2);
+					return true;
 				}
-				return true;
 			}
 		}
 		return false;
@@ -705,14 +712,16 @@ public class HaplotypeBlock {
 	public boolean setTripHet(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC,
-						Strand.STRAND1);
+				// Guarantee that tripHets are labeled as not phased to prevent problems when calculating confidence
+				this.replaceVariant(new VariantContextBuilder(posVC).genotypes(
+					new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(false).make()).attribute("Innocuous", true).make(), posVC, Strand.STRAND1);				
 				return true;
 			}
 		}
 		for (VariantContext posVC : strand2) {
 			if (posVC.getStart() == trioVar.getStart()) {
-				this.replaceVariant(new VariantContextBuilder(posVC).attribute("Innocuous", true).make(), posVC,
+				this.replaceVariant(new VariantContextBuilder(posVC).genotypes(
+						new GenotypeBuilder(posVC.getGenotype(PATIENT_ID)).phased(false).make()).attribute("Innocuous", true).make(), posVC,
 						Strand.STRAND2);
 				return true;
 			}
