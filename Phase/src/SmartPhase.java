@@ -3,9 +3,13 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -76,6 +80,7 @@ public class SmartPhase {
 	static boolean READS = false;
 	static boolean PHYSICAL_PHASING = false;
 	static boolean REJECT_PHASE = false;
+	static boolean VALIDATION = false;
 
 	static boolean countReads = false;
 
@@ -101,74 +106,129 @@ public class SmartPhase {
 
 	public static void main(String[] args) throws Exception {
 		// Parse Options
+		ArrayList<Option> optionsList = new ArrayList<>();
+		
+		Option filteredVariantsOption = Option.builder("f").longOpt("filtered-variants").argName("file").hasArg().desc("Path to file containing patient variants filtered for significance").build();
+		optionsList.add(filteredVariantsOption);
+		
+		Option allVariantsOption = Option.builder("a").longOpt("all-variants").argName("file.vcf").hasArg().required().desc("Path to file containing all patient variants").build();
+		optionsList.add(allVariantsOption);
+		
+		Option patientOption = Option.builder("p").longOpt("patient").argName("string").hasArg().required().desc("ID of patient used in vcf and ped files").build();
+		optionsList.add(patientOption);
+		
+		Option outputOption = Option.builder("o").longOpt("output").argName("file").hasArg().required().desc("Path to desired output file").build();
+		optionsList.add(outputOption);
+		
+		Option geneRegionsOption = Option.builder("g").longOpt("gene-regions").argName("file.bed").hasArg().desc("Path to file containing genomic regions to be analyzed").build();
+		optionsList.add(geneRegionsOption);
+		
+		Option readsOption = Option.builder("r").longOpt("reads").argName("file.bam,file.bam,...").hasArgs().desc("Comma seperated list of paths to files containing aligned patient reads").build();
+		optionsList.add(readsOption);
+		
+		Option mapqOption = Option.builder("m").longOpt("mapq").argName("int,int,...").hasArgs().desc("Comma seperated list of mapping quality cutoff values to use when examining reads. Each value corresponds to the min MAPQ for an input BAM file").build();
+		optionsList.add(mapqOption);
+				
+		Option trioOption = Option.builder("t").longOpt("trio").desc("Indicates trio information is available and contained in original-variants file provided").build();
+		optionsList.add(trioOption);
+		
+		Option pedOption = Option.builder("d").longOpt("ped").argName("file.ped").hasArg().desc("Path to file containing vcf IDs of trio").build();
+		optionsList.add(pedOption);
+		
+		Option cohortOption = Option.builder("c").longOpt("cohort").desc("Indicates this is a cohort set").build();
+		optionsList.add(cohortOption);
+		
+		Option physicalPhasingOption = Option.builder("y").longOpt("physical-phasing").desc("Indicates GATK physical phasing info should be used as last-resort phasing").build();
+		optionsList.add(physicalPhasingOption);
+		
+		Option noChrOption = Option.builder("z").longOpt("no-chr").desc("Indicates chromosomes in vcf/bam do not start with string chr").build();
+		optionsList.add(noChrOption);
+		
+		Option rejectPhaseOption = Option.builder("x").longOpt("reject-phase").desc("Indicates phase already present in vcf should be disregarded").build();
+		optionsList.add(rejectPhaseOption);
+		
+		Option validationOption = Option.builder("v").longOpt("validation").desc("Indicates extra output files to assist in validation by calculating and providing data for switch error and phase connectivity should be created. Files will be created in the same location as the primary output file").build();
+		optionsList.add(validationOption);
+		
+		Option helpOption = Option.builder("h").longOpt("help").desc("Print this message").build();
+		optionsList.add(helpOption);
+				
 		Options options = new Options();
-		options.addRequiredOption("f", "filtered-variants", true,
-				"Path to file containing patient variants filtered for significance");
-		options.addRequiredOption("a", "all-variants", true, "Path to file containing all patient variants (.vcf)");
-		options.addRequiredOption("p", "patient", true, "ID of patient through vcf and ped files.");
-		options.addRequiredOption("o", "output", true, "Path to desired output file.");
-		options.addOption("g", "gene-regions", true, "Path to file containing genomic regions to be analyzed (.bed)");
-		options.addOption("r", "reads", true,
-				"Comma seperated list of paths to files containing aligned patient reads.");
-		options.addOption("m", "mapq", true,
-				"Comma seperated list of mapping quality cutoff values to use when examining reads. Each value corresponds to the min MAPQ for an input BAM file.");
-		options.addOption("t", "trio", false,
-				"Trio information is available AND contained in original-variants file provided.");
-		options.addOption("d", "ped", true, "Path to file containing vcf IDs of trio.");
-		options.addOption("c", false, "This is a cohort set.");
-		options.addOption("y", "physical-phasing", false,
-				"GATK physical phasing info should be used as last-resort phasing.");
-		options.addOption("h", false, "Chromosomes in vcf/bam do not start with string chr.");
-		options.addOption("x", "reject-phase", false, "Don't look at phase already present in vcf");
-
+		Options helpCheckOptions = new Options();
+		
+		for(Option option : optionsList) {
+			options.addOption(option);
+			boolean required = option.isRequired();
+			option.setRequired(false);
+			helpCheckOptions.addOption(option);
+			option.setRequired(required);
+		}
+		
 		CommandLineParser parser = new DefaultParser();
+		CommandLine helpCheckCmd = parser.parse(helpCheckOptions, args);
+					
+		if(helpCheckCmd.hasOption(helpOption.getLongOpt()) || helpCheckCmd.hasOption(helpOption.getOpt())) {
+			HelpFormatter helpFormatter = new HelpFormatter();
+			String usageMessage = "Welcome to SmartPhase! A dedicated tool designed to assist in the rapid and accurate phasing of variant combinations for clinical analysis. Please refer to the following list of options on how to pass the necessary parameters for use:\n";
+			helpFormatter.printHelp(usageMessage, options, true);
+			System.exit(0);
+		}
+		
 		CommandLine cmd = parser.parse(options, args);
 
 		long startTime = System.currentTimeMillis();
 
-		// File inputVCF_Mot;
-		// File inputVCF_Fat;
-
 		File inputBED = null;
-		final File inputVCF_FILTER = new File(cmd.getOptionValue("f"));
-		final File inputVCF_ALL = new File(cmd.getOptionValue("a"));
-		final String inputREADFILESSTRING = cmd.getOptionValue("r");
-		final String inputMinMAPQ = cmd.getOptionValue("m");
-		final File OUTPUT = new File(cmd.getOptionValue("o"));
-		PATIENT_ID = cmd.getOptionValue("p");
+		final File inputVCF_ALL = new File(cmd.getOptionValue(allVariantsOption.getOpt()));
+		final String inputREADFILESSTRING = cmd.getOptionValue(readsOption.getOpt());
+		final String inputMinMAPQ = cmd.getOptionValue(mapqOption.getOpt());
+		final Path OUTPUT = Paths.get(cmd.getOptionValue(outputOption.getOpt()));
+		PATIENT_ID = cmd.getOptionValue(patientOption.getOpt());
 		final boolean COHORT;
 		final File inputPEDIGREE;
 		final String chr;
 		PedFile familyPed = null;
-		if (cmd.hasOption("t")) {
+		final File inputVCF_FILTER;
+		
+		if(cmd.hasOption(filteredVariantsOption.getOpt())) {
+			inputVCF_FILTER = new File(cmd.getOptionValue(filteredVariantsOption.getOpt()));
+		} else {
+			inputVCF_FILTER = inputVCF_ALL;
+		}
+		
+		if (cmd.hasOption(trioOption.getOpt())) {
 			TRIO = true;
-			inputPEDIGREE = new File(cmd.getOptionValue("d"));
+			inputPEDIGREE = new File(cmd.getOptionValue(pedOption.getOpt()));
 			familyPed = PedFile.fromFile(inputPEDIGREE, true);
 		}
 
-		if (cmd.hasOption("x")) {
+		if (cmd.hasOption(rejectPhaseOption.getOpt())) {
 			REJECT_PHASE = true;
 		}
 
-		if (cmd.hasOption("h")) {
+		if (cmd.hasOption(noChrOption.getOpt())) {
 			chr = "";
 		} else {
 			chr = "chr";
 		}
 
-		if (cmd.hasOption("y")) {
+		if (cmd.hasOption(physicalPhasingOption.getOpt())) {
 			PHYSICAL_PHASING = true;
 		}
 
-		if (cmd.hasOption("c")) {
+		if (cmd.hasOption(validationOption.getOpt())) {
+			VALIDATION = true;
+		}
+
+		if (cmd.hasOption(cohortOption.getOpt())) {
 			COHORT = true;
 		} else {
 			COHORT = false;
-			if (!cmd.hasOption("g")) {
+			if (!cmd.hasOption(geneRegionsOption.getOpt())) {
 				throw new Exception("If not in cohort mode, a genomic regions bed file must be provided!");
 			}
 
-			inputBED = new File(cmd.getOptionValue("g"));
+			inputBED = new File(cmd.getOptionValue(geneRegionsOption.getOpt()));
 
 			if (!inputBED.exists()) {
 				throw new FileNotFoundException("File " + inputBED.getAbsolutePath() + " does not exist!");
@@ -176,14 +236,12 @@ public class SmartPhase {
 
 		}
 
-		if (cmd.hasOption("r")) {
+		if (cmd.hasOption(readsOption.getOpt())) {
 			READS = true;
 		}
 
 		if (READS) {
-			// Parse input read files and their desired min MAPQ from command
-			// line
-			// string
+			// Parse input read files and their desired min MAPQ from command line
 			String[] inputREADFILEPATHS = inputREADFILESSTRING.split(",");
 			String[] inputMinMAPQStrings = inputMinMAPQ.split(",");
 
@@ -217,10 +275,40 @@ public class SmartPhase {
 					"You must provide at least one valid bam file containing reads (-r) or activate trio phasing (-t).");
 		}
 
-		if (OUTPUT.exists()) {
-			System.out.println(
-					"WARNING! Output file " + OUTPUT.getAbsolutePath() + " already exists and will be overwritten.");
-			OUTPUT.delete();
+		if (OUTPUT.toFile().exists()) {
+			System.out
+					.println("WARNING! Output file " + OUTPUT.toString() + " already exists and will be overwritten.");
+			OUTPUT.toFile().delete();
+		}
+
+		Path validationOutputPath = OUTPUT;
+		Path validationOutputPathConf = OUTPUT;
+		Path validationOutputPathBlockLength = OUTPUT;
+		String outputPathString = OUTPUT.toString();
+
+		if (VALIDATION) {
+			int lastDot = outputPathString.lastIndexOf('.');
+			validationOutputPath = Paths
+					.get(outputPathString.substring(0, lastDot) + "_VALIDATION.csv");
+			validationOutputPathConf = Paths.get(
+					outputPathString.substring(0, lastDot) + "_VALIDATION_CONF" + outputPathString.substring(lastDot));
+			validationOutputPathBlockLength = Paths.get(
+					outputPathString.substring(0, lastDot) + "_VALIDATION_BLOCK_LENGTH" + outputPathString.substring(lastDot));
+			if (validationOutputPath.toFile().exists()) {
+				System.out.println("WARNING! Output file " + validationOutputPath.toString()
+						+ " already exists and will be overwritten.");
+				validationOutputPath.toFile().delete();
+			}
+			if (validationOutputPathConf.toFile().exists()) {
+				System.out.println("WARNING! Output file " + validationOutputPathConf.toString()
+						+ " already exists and will be overwritten.");
+				validationOutputPathConf.toFile().delete();
+			}
+			if (validationOutputPathBlockLength.toFile().exists()) {
+				System.out.println("WARNING! Output file " + validationOutputPathBlockLength.toString()
+						+ " already exists and will be overwritten.");
+				validationOutputPathBlockLength.toFile().delete();
+			}
 		}
 
 		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
@@ -324,6 +412,9 @@ public class SmartPhase {
 			}
 		}
 
+		ArrayList<String> confidenceValidation = new ArrayList<>();  
+		ArrayList<Integer> haplotypeBlockLengths = new ArrayList<>();
+
 		samReaderFactory = null;
 
 		// Iterate over genomic regions
@@ -339,8 +430,12 @@ public class SmartPhase {
 			String intervalName = "";
 			int intervalStart = curInterval.getStart();
 			int intervalEnd = curInterval.getEnd();
+			String intervalIdentifier = "";
 			if (curInterval.getName() != null) {
 				intervalName = curInterval.getName();
+				intervalIdentifier = intervalName + "-" + intervalContig + "-" + intervalStart + "-" + intervalEnd;
+			} else {
+				intervalIdentifier = intervalContig + "-" + intervalStart + "-" + intervalEnd;
 			}
 
 			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
@@ -348,24 +443,17 @@ public class SmartPhase {
 			}
 
 			/*
-			boolean contigSwitch = false;
-			// Contig switched.
-			if (!prevContig.equals(intervalContig)) {
-				for (SAMRecordIterator srIt : samIteratorList) {
-					srIt.close();
-				}
-				samIteratorList = new ArrayList<SAMRecordIterator>();
-				grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
-				curRecords = new ArrayList<SAMRecord>();
-				for (SamReader sr : samReaderSet) {
-					samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, intervalEnd));
-				}
-				contigSwitch = true;
-				prevContig = intervalContig;
-			}
-			*/boolean 
-			contigSwitch = true;
-			
+			 * boolean contigSwitch = false; // Contig switched. if
+			 * (!prevContig.equals(intervalContig)) { for (SAMRecordIterator srIt :
+			 * samIteratorList) { srIt.close(); } samIteratorList = new
+			 * ArrayList<SAMRecordIterator>(); grabLastRec = new HashMap<SAMRecordIterator,
+			 * SAMRecord>(); curRecords = new ArrayList<SAMRecord>(); for (SamReader sr :
+			 * samReaderSet) { samIteratorList.add(sr.queryOverlapping(intervalContig,
+			 * intervalStart, intervalEnd)); } contigSwitch = true; prevContig =
+			 * intervalContig; }
+			 */
+			boolean contigSwitch = true;
+
 			for (SAMRecordIterator srIt : samIteratorList) {
 				srIt.close();
 			}
@@ -393,14 +481,10 @@ public class SmartPhase {
 				// Skip all phasing steps and move onto next interval after
 				// printing into file
 				for (VariantContext singleVC : regionFiltVariantList) {
-					try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
+					try (BufferedWriter bwOUTPUT = Files.newBufferedWriter(OUTPUT, StandardCharsets.UTF_8,
+							StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
 
-						bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
-								+ intervalName + "\n");
-
-						bwOUTPUT.write(singleVC.getContig() + "-" + singleVC.getStart() + "-"
-								+ singleVC.getReference().getBaseString() + "-"
-								+ singleVC.getAlternateAllele(0).getBaseString() + "\n");
+						bwOUTPUT.write(intervalIdentifier + "\t" + constructVariantString(singleVC) + "\n");
 
 					} catch (Exception e) {
 						e.printStackTrace();
@@ -465,10 +549,71 @@ public class SmartPhase {
 			}
 
 			// Write final output file
-			try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
+			try (final BufferedWriter bwOUTPUT = Files.newBufferedWriter(OUTPUT, StandardCharsets.UTF_8,
+					StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+					final BufferedWriter bwVALIDATION = Files.newBufferedWriter(validationOutputPath,
+							StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);) {
 
-				bwOUTPUT.write("INTERVAL\t" + intervalContig + "\t" + intervalStart + "\t" + intervalEnd + "\t"
-						+ intervalName + "\n");
+				if (VALIDATION) {
+					double allVarsToPhaseCount = (double) regionFiltVariantList.size();
+					double phaseConnections = allVarsToPhaseCount - (double) phasedVars.size();
+					double totalSwitchError = 0;
+					double blocksExamined = 0;
+					int blockLength;
+					for (HaplotypeBlock phasedBlock : phasedVars) {
+						blockLength = phasedBlock.getBlockEnd() - phasedBlock.getBlockStart();
+						haplotypeBlockLengths.add(blockLength + 1);
+						ArrayList<VariantContext> allBlockVars = phasedBlock.getAllVariants();
+						if (allBlockVars.size() > 1) {
+							String prevStrand = null;
+							String[] prevGoldenSplit = null;
+							VariantContext prevVar = null;
+							double switchError = 0;
+							blocksExamined++;
+							allBlockVarsLoop:
+							for (VariantContext var : allBlockVars) {
+								String[] currentGoldenSplit = grabSimilarVarFromList(var, regionFiltVariantList).getGenotype(PATIENT_ID).getGenotypeString(false)
+										.split("\\|");
+								String currentStrand = phasedBlock.getStrand(var).toString();
+								if (prevStrand != null) {
+									// Check if either var belongs to notPhased group
+									for (VariantContext notSeenVar : neverSeenVariants) {
+										if (varsAreSimilar(notSeenVar, var) || varsAreSimilar(notSeenVar, prevVar)) {
+											double confidence = phasedBlock.calculateConfidence(var, prevVar);
+											if(confidence != 1) {
+												phaseConnections -= 1;
+												continue allBlockVarsLoop;
+											}
+										}
+									}
+									
+									boolean goldenCis = false;
+
+									if ((currentGoldenSplit[0].indexOf("*") != -1 && prevGoldenSplit[0].indexOf("*") != -1)
+											|| (currentGoldenSplit[1].indexOf("*") != -1
+													&& prevGoldenSplit[1].indexOf("*") != -1)) {
+										goldenCis = true;
+									}
+									
+									boolean predictCis = prevStrand.equals(currentStrand);
+									if ((predictCis && !goldenCis) || (!predictCis && goldenCis)) {
+										switchError++;
+									}
+								}
+								prevStrand = currentStrand;
+								prevGoldenSplit = currentGoldenSplit;
+								prevVar = var;
+							}
+							totalSwitchError += switchError;
+						}
+					}
+					double meanSwitchError = totalSwitchError/blocksExamined;
+					double phasingError = meanSwitchError / phaseConnections;
+					double phaseConnectionsRatio = phaseConnections / (allVarsToPhaseCount - 1.0);
+					String validationString = intervalIdentifier + "," + allVarsToPhaseCount + "," + phaseConnections
+							+ "," + phaseConnectionsRatio + "," + totalSwitchError + "," + meanSwitchError + "," + phasingError + "\n";
+					bwVALIDATION.write(validationString);
+				}
 
 				Set<VariantContext> missingVars = new HashSet<VariantContext>();
 				for (int outerCount = 0; outerCount < regionFiltVariantList.size() - 1; outerCount++) {
@@ -494,7 +639,7 @@ public class SmartPhase {
 							}
 
 							// TODO: Sift through arraylists twice... very
-							// inneficient
+							// inefficient
 							VariantContext trueOuterVariant = hb.getSimVC(outerVariant);
 							VariantContext trueInnerVariant = hb.getSimVC(innerVariant);
 							HaplotypeBlock.Strand outerStrand = hb.getStrandSimVC(outerVariant);
@@ -540,12 +685,8 @@ public class SmartPhase {
 						if (notPhased && PHYSICAL_PHASING) {
 							// Check if physical phasing info from GATK can
 							// phase
-							String ppInnerKey = innerVariant.getContig() + "|" + innerVariant.getStart() + "|"
-									+ innerVariant.getEnd() + innerVariant.getReference().getDisplayString() + "|"
-									+ innerVariant.getAlternateAllele(0).getDisplayString();
-							String ppOuterKey = outerVariant.getContig() + "|" + outerVariant.getStart() + "|"
-									+ outerVariant.getEnd() + outerVariant.getReference().getDisplayString() + "|"
-									+ outerVariant.getAlternateAllele(0).getDisplayString();
+							String ppInnerKey = constructPPKey(innerVariant);
+							String ppOuterKey = constructPPKey(outerVariant);
 							if (physicalPhasingPIDMap.containsKey(ppInnerKey)
 									&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
 											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
@@ -564,15 +705,10 @@ public class SmartPhase {
 						}
 
 						for (VariantContext notSeenVar : neverSeenVariants) {
-							if ((notSeenVar.getStart() == outerVariant.getStart()
-									&& notSeenVar.getReference().equals(outerVariant.getReference())
-									&& notSeenVar.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0)))
-									|| (notSeenVar.getStart() == innerVariant.getStart()
-											&& notSeenVar.getReference().equals(innerVariant.getReference())
-											&& notSeenVar.getAlternateAllele(0)
-													.equals(innerVariant.getAlternateAllele(0)))) {
+							if (varsAreSimilar(notSeenVar, outerVariant)
+									|| varsAreSimilar(notSeenVar, innerVariant)) {
 								neverSeenFlag = true;
-								if(totalConfidence != 1){
+								if (totalConfidence != 1) {
 									notPhased = true;
 									isTrans = false;
 									isCis = false;
@@ -604,25 +740,36 @@ public class SmartPhase {
 						}
 
 						// Calc total number of reads spanning both variants
+						String baseOutput = intervalIdentifier + "\t" + constructVariantString(outerVariant) + "\t" + constructVariantString(innerVariant) + "\t" + flag + "\t"
+								+ totalConfidence;
+
+						if (VALIDATION) {
+							String[] goldenOuterSplit = outerVariant.getGenotype(PATIENT_ID).getGenotypeString(false)
+									.split("\\|");
+							String[] goldenInnerSplit = innerVariant.getGenotype(PATIENT_ID).getGenotypeString(false)
+									.split("\\|");
+
+							boolean goldenPhaseCis = false;
+
+							if ((goldenOuterSplit[0].indexOf("*") != -1 && goldenInnerSplit[0].indexOf("*") != -1)
+									|| (goldenOuterSplit[1].indexOf("*") != -1
+											&& goldenInnerSplit[1].indexOf("*") != -1)) {
+								goldenPhaseCis = true;
+							}
+
+							if ((goldenPhaseCis && isCis) || (!goldenPhaseCis && isTrans)) {
+								confidenceValidation.add(intervalIdentifier + "\t" + constructVariantString(outerVariant) + "\t" + constructVariantString(innerVariant) + "\t" + totalConfidence + "\t" + 1);
+							} else if ((goldenPhaseCis && isTrans) || (!goldenPhaseCis && isCis)) {
+								confidenceValidation.add(intervalIdentifier + "\t" + constructVariantString(outerVariant) + "\t" + constructVariantString(innerVariant) + "\t" + totalConfidence + "\t" + 0);
+							}
+						}
 
 						if (countReads) {
 							int spanningReads = countReads(curInterval, innerVariant, outerVariant);
 
-							bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
-									+ outerVariant.getReference().getBaseString() + "-"
-									+ outerVariant.getAlternateAllele(0).getBaseString() + "\t"
-									+ innerVariant.getContig() + "-" + innerVariant.getStart() + "-"
-									+ innerVariant.getReference().getBaseString() + "-"
-									+ innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
-									+ totalConfidence + "\t" + spanningReads + "\n");
+							bwOUTPUT.write(baseOutput + "\t" + spanningReads + "\n");
 						} else {
-							bwOUTPUT.write(outerVariant.getContig() + "-" + outerVariant.getStart() + "-"
-									+ outerVariant.getReference().getBaseString() + "-"
-									+ outerVariant.getAlternateAllele(0).getBaseString() + "\t"
-									+ innerVariant.getContig() + "-" + innerVariant.getStart() + "-"
-									+ innerVariant.getReference().getBaseString() + "-"
-									+ innerVariant.getAlternateAllele(0).getBaseString() + "\t" + flag + "\t"
-									+ totalConfidence + "\n");
+							bwOUTPUT.write(baseOutput + "\n");
 						}
 					}
 					if (!foundOuter) {
@@ -632,9 +779,7 @@ public class SmartPhase {
 
 				// Inform user of missing vars
 				for (VariantContext missingVar : missingVars) {
-					System.err.println("Could not find variant: " + missingVar.getContig() + "-" + missingVar.getStart()
-							+ "-" + missingVar.getReference().getBaseString() + "-"
-							+ missingVar.getAlternateAllele(0).getBaseString());
+					System.err.println("Could not find variant: " + constructVariantString(missingVar));
 				}
 
 			} catch (Exception e) {
@@ -658,34 +803,68 @@ public class SmartPhase {
 		double averageTransLength = (double) globalTransLength / globalTrans;
 
 		// Output statistics
-		System.out.println("Denovo count: " + denovoCounter);
-		System.out.println("Cis count: " + globalCis);
-		System.out.println("Avg dist between cis: " + averageCisLength);
-		System.out.println("Trans count: " + globalTrans);
-		System.out.println("Avg dist between trans: " + averageTransLength);
-		System.out.println("Newblock count: " + globalNewBlock);
-		System.out.println("Contradiction count: " + globalContradiction);
-		System.out.println("Innocuous count: " + innocCounter);
-		System.out.println("RNAseq jump count: " + globalRNAseqCount);
-		System.out.println("Physical Phasing Count: " + ppPhased);
-		System.out.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
+		String outputStatistics = "Denovo count: " + denovoCounter + "\nCis count: " + globalCis
+				+ "\nAvg dist between cis: " + averageCisLength + "\nTrans count: " + globalTrans
+				+ "\nAvg dist between trans: " + averageTransLength + "\nNewblock count: " + globalNewBlock
+				+ "\nContradiction count: " + globalContradiction + "\nInnocuous count: " + innocCounter
+				+ "\nRNAseq jump count: " + globalRNAseqCount + "\nPhysical Phasing Count: " + ppPhased + "\n"
+				+ String.format("%02d:%02d:%02d:%d", hour, minute, second, millis);
 
-		try (BufferedWriter bwOUTPUT = new BufferedWriter(new FileWriter(OUTPUT, true))) {
+		System.out.println(outputStatistics);
+
+		if (VALIDATION) {
+			try (final BufferedWriter bwVALIDATION = Files.newBufferedWriter(validationOutputPathConf,
+					StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+				for (String conf : confidenceValidation) {
+					bwVALIDATION.write(conf + "\n");
+				}
+			}
+			try (final BufferedWriter bwVALIDATION = Files.newBufferedWriter(validationOutputPathBlockLength,
+					StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+				bwVALIDATION.write("#Block Lengths:+\n");
+				for (int blockLength : haplotypeBlockLengths) {
+					bwVALIDATION.write(blockLength + "\n");
+				}
+			}
+		}
+
+		try (BufferedWriter bwOUTPUT = Files.newBufferedWriter(OUTPUT, StandardCharsets.UTF_8,
+				StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
 			PrintWriter pwOUTPUT = new PrintWriter(bwOUTPUT);
-			pwOUTPUT.println("Denovo count: " + denovoCounter);
-			pwOUTPUT.println("Cis count: " + globalCis);
-			pwOUTPUT.println("Avg dist between cis: " + averageCisLength);
-			pwOUTPUT.println("Trans count: " + globalTrans);
-			pwOUTPUT.println("Avg dist between trans: " + averageTransLength);
-			pwOUTPUT.println("Newblock count: " + globalNewBlock);
-			pwOUTPUT.println("Contradiction count: " + globalContradiction);
-			pwOUTPUT.println("Innocuous count: " + innocCounter);
-			pwOUTPUT.println("RNAseq jump count: " + globalRNAseqCount);
-			pwOUTPUT.println("Physical Phasing Count: " + ppPhased);
-			pwOUTPUT.println(String.format("%02d:%02d:%02d:%d", hour, minute, second, millis));
+			pwOUTPUT.println(outputStatistics);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static VariantContext grabSimilarVarFromList(VariantContext vc, ArrayList<VariantContext> regionFiltVariantList) {
+		for(VariantContext posVC : regionFiltVariantList) {
+			if(varsAreSimilar(vc, posVC)) {
+				return posVC;
+			}
+		}
+		return null;
+	}
+	
+	private static boolean varsAreSimilar(VariantContext var1, VariantContext var2) {
+		if(var1.getStart() == var2.getStart() && var1.getContig().equals(var2.getContig())
+				&& var1.getReference().equals(var2.getReference())
+				&& var1.getAlternateAllele(0).equals(var2.getAlternateAllele(0))){
+			return true;
+		}
+		return false;
+	}
+	
+	private static String constructVariantString(VariantContext var) {
+		return var.getContig() + "-" + var.getStart() + "-"
+				+ var.getReference().getBaseString() + "-"
+				+ var.getAlternateAllele(0).getBaseString();
+	}
+	
+	private static String constructPPKey(VariantContext var) {
+		return var.getContig() + "|" + var.getStart() + "|"
+				+ var.getEnd() + var.getReference().getDisplayString() + "|"
+				+ var.getAlternateAllele(0).getDisplayString();
 	}
 
 	private static int countReads(Interval interval, VariantContext vc1, VariantContext vc2) {
@@ -747,7 +926,7 @@ public class SmartPhase {
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
-		int intervalEnd = curInterval.getEnd(); 
+		int intervalEnd = curInterval.getEnd();
 		String intervalContig = curInterval.getContig();
 
 		System.out.println("Variants found in interval: " + variantsToPhase.size());
@@ -757,7 +936,7 @@ public class SmartPhase {
 		for (int indx = 0; indx < samIteratorList.size(); indx++) {
 			SAMRecordIterator curIterator = samIteratorList.get(indx);
 			double minQ = minMAPQ[indx];
-						
+
 			// Update curRec to last record looked at by current iterator
 			curRec = grabLastRec.getOrDefault(curIterator, null);
 
@@ -783,7 +962,8 @@ public class SmartPhase {
 							pairedEndReads.put(curRec.getReadName(), null);
 						} else {
 							ArrayList<SAMRecord> allPairedRecords = (pairedEndReads.get(curRec.getReadName()) == null)
-									? new ArrayList<SAMRecord>() : pairedEndReads.get(curRec.getReadName());
+									? new ArrayList<SAMRecord>()
+									: pairedEndReads.get(curRec.getReadName());
 							allPairedRecords.add(curRec);
 							pairedEndReads.put(curRec.getReadName(), allPairedRecords);
 						}
@@ -1288,9 +1468,9 @@ public class SmartPhase {
 		trimPosVarsInRead.removeIf(v -> v.getStart() < r.getAlignmentStart() || v.getEnd() > r.getAlignmentEnd());
 
 		/*
-		 * Read covers less than 2 variants and is thus not of interest. OLD.
-		 * Because of paired end reads, a single variant can still technically
-		 * be of use if (trimPosVarsInRead.size() < 2) { continue; }
+		 * Read covers less than 2 variants and is thus not of interest. OLD. Because of
+		 * paired end reads, a single variant can still technically be of use if
+		 * (trimPosVarsInRead.size() < 2) { continue; }
 		 */
 		if (trimPosVarsInRead.size() < 1) {
 			return null;
@@ -1491,7 +1671,6 @@ public class SmartPhase {
 		// Iterate over all variants in region and phase the patient's genotype
 		// whenever possible using trio information
 		while (inVariantsIterator.hasNext()) {
-
 			VariantContext var = inVariantsIterator.next();
 			Genotype patientGT = var.getGenotype(PATIENT_ID);
 
@@ -1499,8 +1678,7 @@ public class SmartPhase {
 			if (PHYSICAL_PHASING && patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
 				String PID = (String) patientGT.getAnyAttribute("PID");
 				String PGT = (String) patientGT.getAnyAttribute("PGT");
-				String key = var.getContig() + "|" + var.getStart() + "|" + var.getEnd()
-						+ var.getReference().getDisplayString() + "|" + var.getAlternateAllele(0).getDisplayString();
+				String key = constructPPKey(var);
 
 				physicalPhasingPIDMap.put(key, PID);
 				physicalPhasingPGTMap.put(key, PGT);
@@ -1628,7 +1806,9 @@ public class SmartPhase {
 
 			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet()) {
 				// Trip-het can never be phased
-				outVariants.add(new VariantContextBuilder(var).genotypes(new GenotypeBuilder(patientGT).phased(false).make()).attribute("Innocuous", true).make());
+				outVariants.add(
+						new VariantContextBuilder(var).genotypes(new GenotypeBuilder(patientGT).phased(false).make())
+								.attribute("Innocuous", true).make());
 				continue;
 			}
 
@@ -1674,8 +1854,7 @@ public class SmartPhase {
 			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
 				String PID = (String) patientGT.getAnyAttribute("PID");
 				String PGT = (String) patientGT.getAnyAttribute("PGT");
-				String key = var.getContig() + "|" + var.getStart() + "|" + var.getEnd()
-						+ var.getReference().getDisplayString() + "|" + var.getAlternateAllele(0).getDisplayString();
+				String key = constructPPKey(var);
 
 				physicalPhasingPIDMap.put(key, PID);
 				physicalPhasingPGTMap.put(key, PGT);
@@ -1717,14 +1896,15 @@ public class SmartPhase {
 						mergeBlockCntr = mergeBlock.getHighestMB();
 						mergeBlockCntr++;
 						prevTrioVar = trioVar;
+						hapBlockIt.remove();
 						if (hapBlockIt.hasNext()) {
-							hapBlockIt.remove();
 							curBlock = hapBlockIt.next();
 						} else {
 							break HapBlockLoop;
 						}
 						continue HapBlockLoop;
 					}
+					hapBlockIt.remove();
 
 					// [0] is always mother. [1] is always father
 					String[] prevTrioSplit = prevTrioVar.getGenotype(PATIENT_ID).getGenotypeString(false).split("\\|");
