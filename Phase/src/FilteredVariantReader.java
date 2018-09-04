@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import htsjdk.samtools.util.CloseableIterator;
 import htsjdk.samtools.util.Interval;
 import htsjdk.samtools.util.IntervalList;
 import htsjdk.variant.variantcontext.Allele;
@@ -33,8 +34,9 @@ public class FilteredVariantReader {
 	private String patientID = "";
 	
 	private boolean vcf = false;
-	private boolean cohort;
+	private boolean paired;
 	private boolean gzipVCF = false;
+	private boolean filtVariantsStartWithChr = true;
 	
 	private VCFFileReader vcfREADER;
 	
@@ -45,11 +47,11 @@ public class FilteredVariantReader {
 	
 	IntervalList iList;
 
-	public FilteredVariantReader(File inFile, boolean cohort, String patID, IntervalList iList) throws Exception {
+	public FilteredVariantReader(File inFile, boolean paired, String patID, IntervalList iList) throws Exception {
 		patientID = patID;
 		fileName = inFile.getName();
 		this.iList = iList;
-		this.cohort = cohort;
+		this.paired = paired;
 		try {
 			raFile = new RandomAccessFile(inFile, "r");
 			contigPointers = new HashMap<String, Long>();
@@ -60,7 +62,7 @@ public class FilteredVariantReader {
 				spliter = ",";
 			} 
 			
-			if(this.cohort){
+			if(this.paired){
 				line = raFile.readLine();
 				while(true) {
 					try {
@@ -76,9 +78,8 @@ public class FilteredVariantReader {
 							continue;
 						}
 						List<String> samples = Arrays.asList(cols[0].split(","));
-						for(String sample : samples){
-							samples.set(samples.indexOf(sample), sample.trim());
-						}
+						samples.replaceAll(s -> s.trim());
+						
 						if(samples.contains(patID)){
 							String var1 = cols[1];
 							String var2 = cols[2];
@@ -90,8 +91,8 @@ public class FilteredVariantReader {
 							createVC(var2Data);
 							
 							String chrom = var1Data[0];
-							if(!chrom.startsWith("chr")){
-								chrom = "chr"+chrom;
+							if(chrom.startsWith("chr")){
+								chrom = chrom.substring(3, chrom.length());
 							}
 							allVarsContigs.add(chrom);
 							
@@ -113,6 +114,23 @@ public class FilteredVariantReader {
 			if(inFile.getPath().endsWith(".vcf.gz")){
 				vcfREADER = new VCFFileReader(inFile);
 				gzipVCF = true;
+				
+				// Check if contigs start with string "chr"
+				VCFFileReader chrCheckAllVCFReader = new VCFFileReader(inFile);
+				CloseableIterator<VariantContext> chrCheckAllVCFIterator = chrCheckAllVCFReader.iterator();
+				if(chrCheckAllVCFIterator.hasNext()) {
+					VariantContext chrCheckVarContext = chrCheckAllVCFIterator.next();
+					if(chrCheckVarContext.getContig().startsWith("chr")) {
+						filtVariantsStartWithChr = true;
+					} else {
+						filtVariantsStartWithChr = false;
+					}
+				} else {
+					chrCheckAllVCFReader.close();
+					throw new Exception("All variants file must contain at least one variant!");
+				}
+				chrCheckAllVCFReader.close();
+				
 				return;
 			}
 			
@@ -170,6 +188,9 @@ public class FilteredVariantReader {
 					
 					String[] splitLine = line.split(spliter);
 					String actContig = splitLine[chromCol];
+					if(actContig.startsWith("chr")){
+						actContig = actContig.substring(3, actContig.length());
+					}
 					if(!actContig.equals(curContig)) {
 						curContig = actContig;
 						if(contigPointers.containsKey(curContig)){
@@ -221,11 +242,9 @@ public class FilteredVariantReader {
 		stop = start + allele.length() - 1;
 		
 		String chrom = data[0];
-		if(!chrom.startsWith("chr")){
-			chrom = "chr"+chrom;
+		if(chrom.startsWith("chr")){
+			chrom = chrom.substring(3, chrom.length());
 		}
-		
-		
 		
 		VariantContext varVC = new VariantContextBuilder().source(fileName).chr(chrom).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
 		
@@ -246,7 +265,7 @@ public class FilteredVariantReader {
 	
 	
 	public boolean contigImportantCheck(String contig) {
-		if(cohort){
+		if(paired){
 			return allVarsContigs.contains(contig);
 		}
 		
@@ -263,10 +282,14 @@ public class FilteredVariantReader {
 		int intervalEnd = curInterval.getEnd();
 		
 		if(gzipVCF){
-			return new ArrayList<VariantContext>(vcfREADER.query(curInterval.getContig(), intervalStart, intervalEnd).toList());
+			String intervalContig = curInterval.getContig();
+			if(filtVariantsStartWithChr) {
+				intervalContig = "chr" + intervalContig;
+			}
+			return new ArrayList<VariantContext>(vcfREADER.query(intervalContig, intervalStart, intervalEnd).toList());
 		}
 		
-		if(cohort){
+		if(paired){
 			ArrayList<VariantContext> scanVars = new ArrayList<VariantContext>(allVariants);
 			scanVars.removeIf(v -> !v.getContig().equals(curInterval.getContig()) || v.getStart() < intervalStart || v.getEnd() > intervalEnd);
 			return scanVars;
@@ -288,21 +311,26 @@ public class FilteredVariantReader {
 				
 				if(line != null){
 					String[] entries = line.split(spliter);
+					String refAlleleString = entries[refCol];
+					String altAlleleString = entries[altCol];
+					String contig = entries[chromCol];
+					
+					if(contig.startsWith("chr")) {
+						contig = contig.substring(3, contig.length());
+					}
 
 					// Parse all alleles
 					ArrayList<Allele> alleles = new ArrayList<Allele>();
-					Allele allele = Allele.create(entries[refCol], true);
+					Allele allele = Allele.create(refAlleleString, true);
 					alleles.add(allele);
 					
 					// Ensure file is normalized
-					String nonRefAllele = entries[altCol];
+					String nonRefAllele = altAlleleString;
 					if(nonRefAllele.indexOf(",") != -1){
 						throw new Exception("Only normalized variant containing files are accepted!");
 					}
 					Allele a = Allele.create(nonRefAllele, false);
-					alleles.add(a);
-					
-					
+					alleles.add(a);	
 
 					long stop;
 					long start = Long.parseLong(entries[startCol]);
@@ -313,7 +341,7 @@ public class FilteredVariantReader {
 					}
 					stop = start + allele.length() - 1;
 					
-					VariantContext newVarC = vcBuilder.source(fileName).chr(entries[chromCol]).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
+					VariantContext newVarC = vcBuilder.source(fileName).chr(contig).start(start).stop(stop).alleles(alleles).genotypes(new GenotypeBuilder().alleles(alleles).name(patientID).make()).make();
 
 					boolean notNew = false;
 					// Check if variant already exists
@@ -323,10 +351,9 @@ public class FilteredVariantReader {
 						}
 					}
 					// Create new variantContext and add
-					if (!notNew && curInterval.getContig().equals(entries[chromCol])) {
+					if (!notNew && curInterval.getContig().equals(contig)) {
 						possibleVariants.add(newVarC);
 					} 					
-					
 					
 					// Check if contig changed
 					if (!newVarC.getContig().equals(curInterval.getContig())) {
@@ -342,7 +369,6 @@ public class FilteredVariantReader {
 				e.printStackTrace();
 				System.exit(1);
 			}
-			
 		}
 
 		// Remove all variants less than current interval start

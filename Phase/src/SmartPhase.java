@@ -135,14 +135,8 @@ public class SmartPhase {
 		Option pedOption = Option.builder("d").longOpt("ped").argName("file.ped").hasArg().desc("Path to file containing vcf IDs of trio").build();
 		optionsList.add(pedOption);
 		
-		Option cohortOption = Option.builder("c").longOpt("cohort").desc("Indicates this is a cohort set").build();
-		optionsList.add(cohortOption);
-		
 		Option physicalPhasingOption = Option.builder("y").longOpt("physical-phasing").desc("Indicates GATK physical phasing info should be used as last-resort phasing").build();
 		optionsList.add(physicalPhasingOption);
-		
-		Option noChrOption = Option.builder("z").longOpt("no-chr").desc("Indicates chromosomes in vcf/bam do not start with string chr").build();
-		optionsList.add(noChrOption);
 		
 		Option rejectPhaseOption = Option.builder("x").longOpt("reject-phase").desc("Indicates phase already present in vcf should be disregarded").build();
 		optionsList.add(rejectPhaseOption);
@@ -184,9 +178,8 @@ public class SmartPhase {
 		final String inputMinMAPQ = cmd.getOptionValue(mapqOption.getOpt());
 		final Path OUTPUT = Paths.get(cmd.getOptionValue(outputOption.getOpt()));
 		PATIENT_ID = cmd.getOptionValue(patientOption.getOpt());
-		final boolean COHORT;
+		final boolean PAIRED;
 		final File inputPEDIGREE;
-		final String chr;
 		PedFile familyPed = null;
 		final File inputVCF_FILTER;
 		
@@ -206,12 +199,6 @@ public class SmartPhase {
 			REJECT_PHASE = true;
 		}
 
-		if (cmd.hasOption(noChrOption.getOpt())) {
-			chr = "";
-		} else {
-			chr = "chr";
-		}
-
 		if (cmd.hasOption(physicalPhasingOption.getOpt())) {
 			PHYSICAL_PHASING = true;
 		}
@@ -220,25 +207,28 @@ public class SmartPhase {
 			VALIDATION = true;
 		}
 
-		if (cmd.hasOption(cohortOption.getOpt())) {
-			COHORT = true;
-		} else {
-			COHORT = false;
-			if (!cmd.hasOption(geneRegionsOption.getOpt())) {
-				throw new Exception("If not in cohort mode, a genomic regions bed file must be provided!");
-			}
+		if (cmd.hasOption(geneRegionsOption.getOpt())) {
+			PAIRED = false;
 
 			inputBED = new File(cmd.getOptionValue(geneRegionsOption.getOpt()));
 
 			if (!inputBED.exists()) {
 				throw new FileNotFoundException("File " + inputBED.getAbsolutePath() + " does not exist!");
 			}
-
+		} else {
+			PAIRED = true;
 		}
+	
 
 		if (cmd.hasOption(readsOption.getOpt())) {
 			READS = true;
 		}
+		
+		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
+				.validationStringency(ValidationStringency.SILENT);
+		
+		boolean readsStartWithChr = false;
+		boolean allVariantsStartWithChr = true;
 
 		if (READS) {
 			// Parse input read files and their desired min MAPQ from command line
@@ -255,12 +245,30 @@ public class SmartPhase {
 			for (int i = 0; i < inputREADFILEPATHS.length; i++) {
 				minMAPQ[i] = Double.valueOf(inputMinMAPQStrings[i]);
 				inputREADFILES[i] = new File(inputREADFILEPATHS[i]);
+				
+				if (!inputREADFILES[i].exists()) {
+					throw new FileNotFoundException("File " + inputREADFILES[i].getAbsolutePath()
+							+ " does not exist! All provided BAM files must be valid.");
+				}
+				
+				SamReader samReaderCheck = samReaderFactory.open(inputREADFILES[i]);
+				samReaderCheck.getFileHeader();
+				SAMRecordIterator chrCheckSAMIterator = samReaderCheck.iterator();
+				if(chrCheckSAMIterator.hasNext()) {
+					SAMRecord firstRecord = chrCheckSAMIterator.next();
+					if(firstRecord.getContig().startsWith("chr")) {
+						if(i > 0 && readsStartWithChr == false) {
+							throw new Exception("All bam contigs must be uniform and start with chr or not. Mixing is not allowed.");
+						}
+						readsStartWithChr = true;
+					} else if (readsStartWithChr == true) {
+						throw new Exception("All bam contigs must be uniform and start with chr or not. Mixing is not allowed.");
+					}
+				} else {
+					throw new Exception("Empty reads file " + inputREADFILES[i].getAbsolutePath() + ". Please provide non-empty files.");
+				}
 			}
-
-			if (!inputREADFILES[0].exists()) {
-				throw new FileNotFoundException("File " + inputREADFILES[0].getAbsolutePath()
-						+ " does not exist! You must provide at least one valid bam file containing reads or activate trio phasing (-t).");
-			}
+			
 		}
 
 		// Ensure required files all exist
@@ -311,39 +319,36 @@ public class SmartPhase {
 			}
 		}
 
-		SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault()
-				.validationStringency(ValidationStringency.SILENT);
-
 		SAMFileHeader allContigsHeader = new SAMFileHeader();
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "1", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "2", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "3", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "4", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "5", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "6", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "7", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "8", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "9", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "10", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "11", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "12", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "13", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "14", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "15", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "16", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "17", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "18", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "19", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "20", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "21", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "22", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "X", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "Y", Integer.MAX_VALUE));
-		allContigsHeader.addSequence(new SAMSequenceRecord(chr + "M", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("1", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("2", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("3", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("4", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("5", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("6", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("7", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("8", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("9", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("10", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("11", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("12", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("13", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("14", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("15", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("16", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("17", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("18", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("19", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("20", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("21", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("22", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("X", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("Y", Integer.MAX_VALUE));
+		allContigsHeader.addSequence(new SAMSequenceRecord("M", Integer.MAX_VALUE));
 
 		IntervalList iList = new IntervalList(allContigsHeader);
 
-		if (!COHORT) {
+		if (!PAIRED) {
 			// Grab all intervals from bed file and store in interval list
 			try (BufferedReader brBED = new BufferedReader(new FileReader(inputBED))) {
 				String line;
@@ -380,7 +385,7 @@ public class SmartPhase {
 						name = columns[nameCol];
 					}
 					String intervalChromosome = columns[0];
-					if (chr.isEmpty()) {
+					if (intervalChromosome.startsWith("chr")) {
 						intervalChromosome = intervalChromosome.substring(3, intervalChromosome.length());
 					}
 					iList.add(new Interval(intervalChromosome, Integer.parseInt(columns[1]),
@@ -394,11 +399,27 @@ public class SmartPhase {
 		iList = iList.uniqued();
 
 		// Read both VCF files
-		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, COHORT, PATIENT_ID, iList);
+		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, PAIRED, PATIENT_ID, iList);
 		@SuppressWarnings("resource")
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
+		
+		// Check if contigs start with string "chr"
+		VCFFileReader chrCheckAllVCFReader = new VCFFileReader(inputVCF_ALL);
+		CloseableIterator<VariantContext> chrCheckAllVCFIterator = chrCheckAllVCFReader.iterator();
+		if(chrCheckAllVCFIterator.hasNext()) {
+			VariantContext chrCheckVarContext = chrCheckAllVCFIterator.next();
+			if(chrCheckVarContext.getContig().startsWith("chr")) {
+				allVariantsStartWithChr = true;
+			} else {
+				allVariantsStartWithChr = false;
+			}
+		} else {
+			chrCheckAllVCFReader.close();
+			throw new Exception("All variants file must contain at least one variant!");
+		}
+		chrCheckAllVCFReader.close();
 
-		if (COHORT) {
+		if (PAIRED) {
 			iList = filteredVCFReader.getiList();
 			iList = iList.uniqued();
 		}
@@ -424,19 +445,36 @@ public class SmartPhase {
 		int innocCounter = 0;
 
 		String prevContig = "";
+		Interval curInterval;
+		String intervalContig;
+		String intervalBamContig;
+		String intervalVarContig;
+		String intervalName;
+		int intervalStart;
+		int intervalEnd;
+		String intervalIdentifier;
+		
 		while (intervalListIterator.hasNext()) {
-			Interval curInterval = intervalListIterator.next();
-			String intervalContig = curInterval.getContig();
-			String intervalName = "";
-			int intervalStart = curInterval.getStart();
-			int intervalEnd = curInterval.getEnd();
-			String intervalIdentifier = "";
-			if (curInterval.getName() != null) {
-				intervalName = curInterval.getName();
-				intervalIdentifier = intervalName + "-" + intervalContig + "-" + intervalStart + "-" + intervalEnd;
-			} else {
-				intervalIdentifier = intervalContig + "-" + intervalStart + "-" + intervalEnd;
+			curInterval = intervalListIterator.next();
+			intervalContig = curInterval.getContig();
+			intervalBamContig = intervalContig;
+			intervalVarContig = intervalContig;
+			intervalName = "";
+			intervalStart = curInterval.getStart();
+			intervalEnd = curInterval.getEnd();
+			intervalIdentifier = "";
+			
+			if(readsStartWithChr) {
+				intervalBamContig = "chr"+intervalContig;
 			}
+			
+			if(allVariantsStartWithChr) {
+				intervalVarContig = "chr"+intervalContig;
+			}
+			
+			intervalName = curInterval.getName();
+			intervalIdentifier = (intervalName != null) ? intervalName + "-" + intervalContig + "-" + intervalStart + "-" + intervalEnd 
+															: intervalContig + "-" + intervalStart + "-" + intervalEnd;
 
 			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
 				continue;
@@ -464,7 +502,7 @@ public class SmartPhase {
 			curRecords.trimToSize();
 			pairedEndReads.clear();
 			for (SamReader sr : samReaderSet) {
-				samIteratorList.add(sr.queryOverlapping(intervalContig, intervalStart, intervalEnd));
+				samIteratorList.add(sr.queryOverlapping(intervalBamContig, intervalStart, intervalEnd));
 			}
 			contigSwitch = true;
 
@@ -495,7 +533,7 @@ public class SmartPhase {
 			}
 
 			// Grab all variants within current region
-			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalContig,
+			CloseableIterator<VariantContext> regionAllVariantIterator = allVCFReader.query(intervalVarContig,
 					intervalStart, intervalEnd);
 			variantsToPhase = new ArrayList<VariantContext>(regionAllVariantIterator.toList());
 
@@ -533,7 +571,7 @@ public class SmartPhase {
 				physicalPhasing(variantsToPhase.iterator());
 			}
 
-			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants);
+			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
 			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
 			variantsToPhase = null;
@@ -847,8 +885,7 @@ public class SmartPhase {
 	}
 	
 	private static boolean varsAreSimilar(VariantContext var1, VariantContext var2) {
-		if(var1.getStart() == var2.getStart() && var1.getContig().equals(var2.getContig())
-				&& var1.getReference().equals(var2.getReference())
+		if(var1.getStart() == var2.getStart() && var1.getReference().equals(var2.getReference())
 				&& var1.getAlternateAllele(0).equals(var2.getAlternateAllele(0))){
 			return true;
 		}
@@ -921,13 +958,17 @@ public class SmartPhase {
 	}
 
 	private static ArrayList<HaplotypeBlock> readPhase(ArrayList<VariantContext> variantsToPhase, Interval curInterval,
-			ArrayList<VariantContext> trioVars) throws Exception {
+			ArrayList<VariantContext> trioVars, boolean readsStartWithChr) throws Exception {
 
 		// First var is guaranteed earliest position, last var end not
 		// guaranteed last, thus use interval end.
 		int intervalStart = variantsToPhase.get(0).getStart();
 		int intervalEnd = curInterval.getEnd();
 		String intervalContig = curInterval.getContig();
+		
+		if(readsStartWithChr) {
+			intervalContig = "chr" + intervalContig;
+		}
 
 		System.out.println("Variants found in interval: " + variantsToPhase.size());
 
