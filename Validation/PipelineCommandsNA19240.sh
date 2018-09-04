@@ -107,22 +107,42 @@ for f in sim/YRI/*_kit.fasta; do
 done
 
 # Rename headers to prevent duplicate names
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.1.fq | awk '{if(NR%4==1) $0=$0"_hapl1"; print;}' > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.1.fixedHeader.fq
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.2.fq | awk '{if(NR%4==1) $0=$0"_hapl1"; print;}' > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.2.fixedHeader.fq
+for f in sim/YRI/*.1.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl1_"$0; print;}' | gzip > $out &
+done
+
+for f in sim/YRI/*.2.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl2_"$0; print;}' | gzip > $out &
+done
 
 # Merge Haplotypes
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.1.1.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.2.1.fq > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.merge.1.fq
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.1.2.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.2.2.fq > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.merge.2.fq
+for f in sim/YRI/*1.1.fixed_header.fq.gz; do
+  f2=${f/1.1.fixed_header.fq.gz/2.1.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.1.fixed_header.fq.gz/1.fq.gz} &
+done
 
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.1.fixedHeader.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.2.1.fq > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.merge.1.fq
-cat sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.1.2.fixedHeader.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.2.2.fq > sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.merge.2.fq
+for f in sim/YRI/*1.2.fixed_header.fq.gz; do
+  f2=${f/1.2.fixed_header.fq.gz/2.2.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.2.fixed_header.fq.gz/2.fq.gz} &
+done
 
 # Map using BWA
 bwa index reference/human_g1k_v37.chr1.fasta
-bwa mem reference/human_g1k_v37.chr1.fasta sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.merge.1.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr1.merge.2.fq > sim/YRI/simulated.art.NA19240.chr1.merge.pe.sam
 
-bwa index reference/human_g1k_v37.chr19.fasta
-bwa mem reference/human_g1k_v37.chr19.fasta sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.merge.1.fq sim/YRI/simulated.art.hsxt.150l.60fc.200m.10s.NA19240.chr19.merge.2.fq > sim/YRI/simulated.art.NA19240.chr19.merge.pe.sam
+for f in sim/YRI/*1.fq.gz; do
+  echo $f
+  id=$( basename $f | cut -d "." -f8 )
+  echo $id
+  f2=${f/1.fq.gz/2.fq.gz}
+  echo $f2
+  out=${f/.1.fq.gz/.bam}
+  echo $out
+  bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools view -@ $threads -bSo $out &
+done 
 
 # SAM to BAM
 samtools sort -o sim/YRI/simulated.art.NA19240.chr1.merge.pe.sort.bam sim/YRI/simulated.art.NA19240.chr1.merge.pe.sam

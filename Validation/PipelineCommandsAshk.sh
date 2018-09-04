@@ -130,29 +130,55 @@ for f in sim/tmp/*fasta; do
 done
 
 # Simulate reads of both haplotypes using ART
-art_bin_MountRainier/art_illumina -ss HSXt -i sim/HG002/HG002.chr1.1.fasta -p -l 150 -f 60 -m 200 -s 10 -o sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.1.
-art_bin_MountRainier/art_illumina -ss HSXt -i sim/HG002/HG002.chr1.2.fasta -p -l 150 -f 60 -m 200 -s 10 -o sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.2.
+art=art_bin_MountRainier/art_illumina
+length=150
+cv=100
+frag=400
+sdev=100
 
-art_bin_MountRainier/art_illumina -ss HSXt -i sim/HG002/HG002.chr19.1.fasta -p -l 150 -f 60 -m 200 -s 10 -o sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.
-art_bin_MountRainier/art_illumina -ss HSXt -i sim/HG002/HG002.chr19.2.fasta -p -l 150 -f 60 -m 200 -s 10 -o sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.2.
+for f in sim/HG002/*_kit.fasta; do
+  sample=$( basename $f | cut -d "_" -f1 )
+  echo start for $sample
+  $art -ss HSXt -i $f -p -l $length -f $cv -m $frag -s $sdev -o sim/HG002/simulated.art.hsxt.${length}l.${cv}fc.${frag}m.${sdev}s.${sample}. > ${sample}.out 2> ${sample}.err &
+done
 
 # Rename headers to prevent duplicate names
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.1.fq | awk '{if(NR%4==1) $0=$0"_hapl1"; print;}' > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.1.fixedHeader.fq
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.2.fq | awk '{if(NR%4==1) $0=$0"_hapl1"; print;}' > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.2.fixedHeader.fq
+for f in sim/HG002/*.1.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl1_"$0; print;}' | gzip > $out &
+done
+
+for f in sim/HG002/*.2.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl2_"$0; print;}' | gzip > $out &
+done
 
 # Merge Haplotypes
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.1.1.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.2.1.fq > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.merge.1.fq
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.1.2.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.2.2.fq > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.merge.2.fq
+for f in sim/HG002/*1.1.fixed_header.fq.gz; do
+  f2=${f/1.1.fixed_header.fq.gz/2.1.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.1.fixed_header.fq.gz/1.fq.gz} &
+done
 
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.1.fixedHeader.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.2.1.fq > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.merge.1.fq
-cat sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.1.2.fixedHeader.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.2.2.fq > sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.merge.2.fq
+for f in sim/HG002/*1.2.fixed_header.fq.gz; do
+  f2=${f/1.2.fixed_header.fq.gz/2.2.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.2.fixed_header.fq.gz/2.fq.gz} &
+done
 
 # Map using BWA
 bwa index reference/human_g1k_v37.chr1.fasta
 
-bwa mem reference/human_g1k_v37.fasta sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.merge.1.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr1.merge.2.fq > sim/HG002/simulated.art.HG002.chr1.merge.pe.sam
-
-bwa mem reference/human_g1k_v37.fasta sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.merge.1.fq sim/HG002/simulated.art.hsxt.150l.60fc.200m.10s.HG002.chr19.merge.2.fq > sim/HG002/simulated.art.HG002.chr19.merge.pe.sam
+for f in sim/HG002/*1.fq.gz; do
+  echo $f
+  id=$( basename $f | cut -d "." -f8 )
+  echo $id
+  f2=${f/1.fq.gz/2.fq.gz}
+  echo $f2
+  out=${f/.1.fq.gz/.bam}
+  echo $out
+  bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools view -@ $threads -bSo $out &
+done 
 
 # SAM to BAM
 samtools sort -o sim/HG002/simulated.art.HG002.chr1.merge.pe.sorted.bam sim/HG002/simulated.art.HG002.chr1.merge.pe.sam 

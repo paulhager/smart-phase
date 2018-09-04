@@ -101,7 +101,6 @@ for f in sim/tmp/*fasta; do
 done
 
 # Simulate reads of both haplotypes using ART
-
 art=art_bin_MountRainier/art_illumina
 length=150
 cv=100
@@ -111,26 +110,47 @@ sdev=100
 for f in sim/CEU/*_kit.fasta; do
   sample=$( basename $f | cut -d "_" -f1 )
   echo start for $sample
-  $art -ss HSXt -i $f -p -l $length -f $cv -m $frag -s $sdev -o sim/YRI/simulated.art.hsxt.${length}l.${cv}fc.${frag}m.${sdev}s.${sample}. > ${sample}.out 2> ${sample}.err &
+  $art -ss HSXt -i $f -p -l $length -f $cv -m $frag -s $sdev -o sim/CEU/simulated.art.hsxt.${length}l.${cv}fc.${frag}m.${sdev}s.${sample}. > ${sample}.out 2> ${sample}.err &
 done
 
 # Rename headers to prevent duplicate names
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.1.fq | awk '{if(NR%4==1) $0="hapl1_"$0; print;}' > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.1.fixedHeader.fq
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.2.fq | awk '{if(NR%4==1) $0="hapl1_"$0; print;}' > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.2.fixedHeader.fq
+for f in sim/CEU/*.1.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl1_"$0; print;}' | gzip > $out &
+done
+
+for f in sim/CEU/*.2.[12].fq; do
+  out=${f/.fq/.fixed_header.fq.gz}
+  echo $f to $out
+  cat $f | awk '{if(NR%4==1) $0="@hapl2_"$0; print;}' | gzip > $out &
+done
 
 # Merge Haplotypes
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.1.1.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.2.1.fq > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.merge.1.fq
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.1.2.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.2.2.fq > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.merge.2.fq
+for f in sim/CEU/*1.1.fixed_header.fq.gz; do
+  f2=${f/1.1.fixed_header.fq.gz/2.1.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.1.fixed_header.fq.gz/1.fq.gz} &
+done
 
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.1.fixedHeader.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.2.1.fq > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.merge.1.fq
-cat sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.1.2.fixedHeader.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.2.2.fq > sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.merge.2.fq
+for f in sim/CEU/*1.2.fixed_header.fq.gz; do
+  f2=${f/1.2.fixed_header.fq.gz/2.2.fixed_header.fq.gz}
+  gzcat $f $f2 | gzip > ${f/1.2.fixed_header.fq.gz/2.fq.gz} &
+done
 
 # Map using BWA
 bwa index reference/human_g1k_v37.fasta
 
-bwa mem reference/human_g1k_v37.fasta sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.merge.1.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr1.merge.2.fq > sim/CEU/simulated.art.NA12878.chr1.merge.pe.sam
-
-bwa mem reference/human_g1k_v37.fasta sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.merge.1.fq sim/CEU/simulated.art.hsxt.150l.60fc.200m.10s.NA12878.chr19.merge.2.fq > sim/CEU/simulated.art.NA12878.chr19.merge.pe.sam
+threads=4
+for f in sim/CEU/*1.fq.gz; do
+  echo $f
+  id=$( basename $f | cut -d "." -f8 )
+  echo $id
+  f2=${f/1.fq.gz/2.fq.gz}
+  echo $f2
+  out=${f/.1.fq.gz/.bam}
+  echo $out
+  bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools view -@ $threads -bSo $out &
+done 
 
 # SAM to BAM
 samtools sort -o sim/CEU/simulated.art.NA12878.chr1.merge.pe.sort.bam sim/CEU/simulated.art.NA12878.chr1.merge.pe.sam
