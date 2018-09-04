@@ -453,6 +453,7 @@ public class SmartPhase {
 		int intervalStart;
 		int intervalEnd;
 		String intervalIdentifier;
+		boolean contigSwitch;
 		
 		while (intervalListIterator.hasNext()) {
 			curInterval = intervalListIterator.next();
@@ -480,17 +481,12 @@ public class SmartPhase {
 				continue;
 			}
 
-			/*
-			 * boolean contigSwitch = false; // Contig switched. if
-			 * (!prevContig.equals(intervalContig)) { for (SAMRecordIterator srIt :
-			 * samIteratorList) { srIt.close(); } samIteratorList = new
-			 * ArrayList<SAMRecordIterator>(); grabLastRec = new HashMap<SAMRecordIterator,
-			 * SAMRecord>(); curRecords = new ArrayList<SAMRecord>(); for (SamReader sr :
-			 * samReaderSet) { samIteratorList.add(sr.queryOverlapping(intervalContig,
-			 * intervalStart, intervalEnd)); } contigSwitch = true; prevContig =
-			 * intervalContig; }
-			 */
-			boolean contigSwitch = true;
+			
+			contigSwitch = false;
+			if (!prevContig.equals(intervalContig)) { 
+				contigSwitch = true; 
+				prevContig = intervalContig; 
+			}
 
 			for (SAMRecordIterator srIt : samIteratorList) {
 				srIt.close();
