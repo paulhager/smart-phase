@@ -938,7 +938,7 @@ public class SmartPhase {
 					// Only use reads that are mapped and have desired quality
 					if (curRecord.getReadUnmappedFlag() || curRecord.getMappingQuality() < minQ
 							|| (curRecord.getReadPairedFlag() && !curRecord.getProperPairFlag())
-							|| curRecord.getDuplicateReadFlag() || curRecord.getNotPrimaryAlignmentFlag()
+							|| curRecord.getDuplicateReadFlag() || curRecord.isSecondaryAlignment()
 							|| curRecord.getStart() > vc1.getStart() || curRecord.getEnd() < vc2.getEnd()) {
 						continue;
 					}
@@ -985,7 +985,7 @@ public class SmartPhase {
 				// Only use reads that are mapped and have desired quality
 				if (curRec.getReadUnmappedFlag() || curRec.getMappingQuality() < minQ
 						|| (curRec.getReadPairedFlag() && !curRec.getProperPairFlag()) || curRec.getDuplicateReadFlag()
-						|| curRec.getNotPrimaryAlignmentFlag()) {
+						|| curRec.isSecondaryAlignment()) {
 					continue;
 				}
 
