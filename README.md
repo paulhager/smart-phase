@@ -22,6 +22,8 @@ java -jar smartPhase.jar -a ./Validation/UseCase/sim.CEU.trio.chr19.phased.muc16
 -x -v -t
 ```
 
+The results will be written into the Validatio/UseCase folder.
+
 ## Running SmartPhase
 
 SmartPhase can either be run in explorative or analytic mode. In explorative mode, SmartPhase parses provided genomic regions of interest (typically protein coding regions) provided in a bed file and, per region, phases either all variants or merely those specified in a filtered variants file. In analytic or paired mode, no regions of interest must be given, just specific variant pairs that should be phased to one another and SmartPhase will create the appropriate regions. Analytic mode lends itself more to an analysis of a cohort where heavy pre-filtering has already been done and only specific candidate variant pairs should be analysed whereas explorative mode is more all-purpose and can be run at any point in the analysis pipeline.
