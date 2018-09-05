@@ -162,15 +162,13 @@ public class HaplotypeBlock {
 	public Strand getStrandSimVC(VariantContext vc) {
 
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
-					&& posVC.getReference().equals(vc.getReference())
+			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND1;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
-					&& posVC.getReference().equals(vc.getReference())
+			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return Strand.STRAND2;
 			}
@@ -188,15 +186,13 @@ public class HaplotypeBlock {
 	 */
 	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
-					&& posVC.getReference().equals(vc.getReference())
+			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == vc.getStart() && posVC.getContig().equals(vc.getContig())
-					&& posVC.getReference().equals(vc.getReference())
+			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
 			}
@@ -552,8 +548,7 @@ public class HaplotypeBlock {
 			int forcedJump) throws Exception {
 		double product = 1.0;
 
-		if (vc1.getStart() == vc2.getStart() && vc1.getContig().equals(vc2.getContig())
-				&& vc1.getReference().equals(vc2.getReference())
+		if (vc1.getStart() == vc2.getStart() && vc1.getReference().equals(vc2.getReference())
 				&& vc1.getAlternateAllele(0).equals(vc2.getAlternateAllele(0))) {
 			return new ConfidencePair<Double, Integer>(1.0, 0);
 		}
@@ -651,8 +646,7 @@ public class HaplotypeBlock {
 	 */
 	public boolean setPhased(VariantContext trioVar) {
 		for (VariantContext posVC : strand1) {
-			if (posVC.getStart() == trioVar.getStart() && posVC.getContig().equals(trioVar.getContig())
-					&& posVC.getReference().equals(trioVar.getReference())
+			if (posVC.getStart() == trioVar.getStart() && posVC.getReference().equals(trioVar.getReference())
 					&& posVC.getAlternateAllele(0).equals(trioVar
 							.getAlternateAllele(0))) {
 				if (trioVar.getAttributeAsBoolean("Innocuous", false)) {
@@ -676,8 +670,7 @@ public class HaplotypeBlock {
 			}
 		}
 		for (VariantContext posVC : strand2) {
-			if (posVC.getStart() == trioVar.getStart() && posVC.getContig().equals(trioVar.getContig())
-					&& posVC.getReference().equals(trioVar.getReference())
+			if (posVC.getStart() == trioVar.getStart() && posVC.getReference().equals(trioVar.getReference())
 					&& posVC.getAlternateAllele(0).equals(trioVar
 							.getAlternateAllele(0))) {
 				if (trioVar.getAttributeAsBoolean("Innocuous", false)) {
