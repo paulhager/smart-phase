@@ -177,66 +177,39 @@ for f in sim/HG002/*1.fq.gz; do
   echo $f2
   out=${f/.1.fq.gz/.bam}
   echo $out
-  bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools view -@ $threads -bSo $out &
-done 
+  bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools sort -@ $threads -o $out -
+  samtools index $out &
+done
 
-# SAM to BAM
-samtools sort -o sim/HG002/simulated.art.HG002.chr1.merge.pe.sorted.bam sim/HG002/simulated.art.HG002.chr1.merge.pe.sam 
+# Extract variants in kit and intersection of kit with gencode coding exons regions
+bedtools intersect -a reference/AGV6UTR_covered_merged.bed -b reference/hg19_GENCODEv27lift37_codingExons_sorted_nochrM_merged.bed > reference/intersect.AGV6UTR.hg19GENCODE_codingExons.bed
 
-samtools sort -o sim/HG002/simulated.art.HG002.chr19.merge.pe.sorted.bam sim/HG002/simulated.art.HG002.chr19.merge.pe.sam 
+cut -c4- reference/intersect.AGV6UTR.hg19GENCODE_codingExons.bed > reference/intersect.AGV6UTR.hg19GENCODE_codingExons.cut.bed
+cut -c4- reference/AGV6UTR_covered_merged.bed > reference/AGV6UTR_covered_merged.cut.bed
 
-# Extract reads in u674 region
-cut -c4- reference/u674control.rmd_DoC_minCov_8.chr1.bed > reference/u674control.rmd_DoC_minCov_8.chr1.cut.bed
-samtools view -b -L reference/u674control.rmd_DoC_minCov_8.chr1.cut.bed sim/HG002/simulated.art.HG002.chr1.merge.pe.sorted.bam > sim/HG002/simulated.art.HG002.chr1.u674control.merge.pe.sorted.bam
-samtools index sim/HG002/simulated.art.HG002.chr1.u674control.merge.pe.sorted.bam
+for f in vcf/sim.ASHK.trio.*.phased.vcf; do
+  out1=${f/.vcf/.AGV6UTR.hg19GENCODE_codingExons}
+  out2=${f/.vcf/.AGV6UTR}
 
-cut -c4- reference/u674control.rmd_DoC_minCov_8.chr19.bed > reference/u674control.rmd_DoC_minCov_8.chr19.cut.bed
-samtools view -b -L reference/u674control.rmd_DoC_minCov_8.chr19.cut.bed sim/HG002/simulated.art.HG002.chr19.merge.pe.sorted.bam > sim/HG002/simulated.art.HG002.chr19.u674control.merge.pe.sorted.bam
-samtools index sim/HG002/simulated.art.HG002.chr19.u674control.merge.pe.sorted.bam
+  vcftools --vcf $f --bed reference/intersect.AGV6UTR.hg19GENCODE_codingExons.cut.bed --out $out1 --recode --keep-INFO-all
+  vcftools --vcf $f --bed reference/AGV6UTR_covered_merged.cut.bed --out $out2 --recode --keep-INFO-all
 
-# Extract variants in GENCODE coding exons region
-bedtools intersect -a reference/u674control.rmd_DoC_minCov_8.chr1.bed -b reference/hg19_GENCODEv27lift37_codingExons_sorted_nochrM_merged.bed > reference/intersect.u674.hg19GENCODE_codingExons.chr1.bed
-cut -c4- reference/intersect.u674.hg19GENCODE_codingExons.chr1.bed > reference/intersect.u674.hg19GENCODE_codingExons.chr1.cut.bed
-vcftools --vcf vcf/sim.trio.chr1.phased.vcf --bed reference/intersect.u674.hg19GENCODE_codingExons.chr1.cut.bed --out vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons --recode --keep-INFO-all
-bgzip -c vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons.recode.vcf > vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz
-tabix vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz
+  out1=$out1.recode.vcf
+  out2=$out2.recode.vcf
 
-bedtools intersect -a reference/u674control.rmd_DoC_minCov_8.chr19.bed -b reference/hg19_GENCODEv27lift37_codingExons_sorted_nochrM_merged.bed > reference/intersect.u674.hg19GENCODE_codingExons.chr19.bed
-cut -c4- reference/intersect.u674.hg19GENCODE_codingExons.chr19.bed > reference/intersect.u674.hg19GENCODE_codingExons.chr19.cut.bed
-vcftools --vcf vcf/sim.trio.chr19.phased.vcf --bed reference/intersect.u674.hg19GENCODE_codingExons.chr19.cut.bed --out vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons --recode --keep-INFO-all
-bgzip -c vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons.recode.vcf > vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz
-tabix vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz
+  bgzip -c $out1 > $out1.gz
+  bgzip -c $out2 > $out2.gz
+
+  tabix $out1.gz
+  tabix $out2.gz
+done
 
 # Run smartphase
 
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.chr1.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.HG002.chr1.u674control.merge.pe.sorted.bam -m=60 -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr1.trio.u674.GENCODE_cE.canonicalGenes.results.txt -x -h -v -t
+java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.AGV6UTR.recode.vcf.gz -p HG002 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.hsxt.150l.100fc.400m.100s.HG002.chr1.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ASHK.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/ASHK/smartPhase.sim.HG002.chr1.trio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v -t
 
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.chr19.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.u674.hg19GENCODE_codingExons.recode.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.HG002.chr19.u674control.merge.pe.sorted.bam -m=60 -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr19.trio.u674.GENCODE_cE.canonicalGenes.results.txt -x -h -v -t
+java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr1.phased.AGV6UTR.recode.vcf.gz -p HG002 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.hsxt.150l.100fc.400m.100s.HG002.chr1.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ASHK.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/ASHK/smartPhase.sim.HG002.chr1.NOtrio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v
 
-#OLD
+java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p HG002 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.hsxt.150l.100fc.400m.100s.HG002.chr19.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ASHK.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/ASHK/smartPhase.sim.HG002.chr19.trio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v -t
 
-cut -c4- reference/AGV6UTR_covered_merged.bed > reference/AGV6UTR_covered_merged.chrCUT.bed
-samtools view -b -L reference/AGV6UTR_covered_merged.chrCUT.bed sim/simulated.art.HG002.chr1.merge.pe.sorted.bam > sim/simulated.art.HG002.chr1.AGV6UTR.merge.pe.sorted.bam
-
-cut -c4- reference/allGeneRegionsCanonical.HG19.GRCh37.bed > reference/allGeneRegionsCanonical.HG19.GRCh37.chrCut.bed
-samtools view -b -L reference/allGeneRegionsCanonical.HG19.GRCh37.chrCUT.bed sim/simulated.art.HG002.chr1.merge.pe.sorted.bam > sim/simulated.art.HG002.chr1.CanonicalGeneRegions.merge.pe.sorted.bam
-
-cut -c4- reference/UCSCCanonicalExons.chr1.bed > reference/UCSCCanonicalExons.chr1.cut.bed
-samtools view -b -L reference/UCSCCanonicalExons.chr1.cut.bed sim/simulated.art.HG002.chr1.merge.pe.sorted.bam > sim/simulated.art.HG002.chr1.CanonicalExons.merge.pe.sorted.bam
-
-
-samtools index sim/simulated.art.HG002.chr1.AGV6UTR.merge.pe.sorted.bam 
-samtools index sim/simulated.art.HG002.chr1.CanonicalGeneRegions.merge.pe.sorted.bam
-samtools index sim/simulated.art.HG002.chr1.CanonicalExons.merge.pe.sorted.bam
-
-bgzip -c vcf/sim.trio.chr1.phased.vcf > vcf/sim.trio.chr1.phased.vcf.gz
-tabix vcf/sim.trio.chr1.phased.vcf.gz 
-
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/AGV6UTR_covered_merged.chr1.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/simulated.art.HG002.chr1.AGV6UTR.merge.pe.sorted.bam -m=60  -t -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr1.trio.AGV6UTR.results.txt -x -h
-
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/allGeneRegionsCanonical.HG19.GRCh37.chr1.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/simulated.art.HG002.chr1.CanonicalGeneRegions.merge.pe.sorted.bam -m=60  -t -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr1.trio.AllCanonicalGeneRegionsHG19GRCH37.results.txt -x -h
-
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/UCSCCanonicalExons.chr1.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/simulated.art.HG002.chr1.CanonicalExons.merge.pe.sorted.bam -m=60  -t -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr1.trio.CanonicalExons.results.txt -x -h
-
-java -jar smartPhase.jar -g=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/hg19_GENCODEv27lift37_codingExons_sorted_nochrM_merged.bed -f=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -a=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.trio.chr1.phased.vcf.gz -p=HG002 -r=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/simulated.art.HG002.chr1.u674control.merge.pe.sorted.bam -m=60  -t -d=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ashk.ped -o=/Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/smartPhase.sim.HG002.chr1.trio.u674.results.txt -x -h
-
+java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/vcf/sim.ASHK.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p HG002 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/HG002/simulated.art.hsxt.150l.100fc.400m.100s.HG002.chr19.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/ASHK.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/ASHK/smartPhase.sim.HG002.chr19.NOtrio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v
