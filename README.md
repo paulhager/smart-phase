@@ -15,7 +15,11 @@ SmartPhase is offered as an executable jar in addition to its source code. The f
 Clone the repository to your file system and execute the following command from the root folder:
 
 ```
-java -jar -f ./Validation/UseCase/sim.CEU.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a ./Validation/UseCase/sim.CEU.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p NA12878 -r ./Validation/UseCase/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 -d ./Validation/UseCase/CEU.ped -o ./Validation/UseCase/smartPhase.sim.NA12878.chr19.trio.results.tsv -x -v -t
+java -jar -f ./Validation/UseCase/sim.CEU.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz \
+-a ./Validation/UseCase/sim.CEU.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p NA12878 \
+-r ./Validation/UseCase/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 \
+-d ./Validation/UseCase/CEU.ped -o ./Validation/UseCase/smartPhase.sim.NA12878.chr19.trio.results.tsv \
+-x -v -t
 ```
 
 ## Running SmartPhase
