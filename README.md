@@ -22,7 +22,7 @@ SmartPhase can either be run in explorative or analytic mode. In explorative mod
 
 ```
 java -jar SmartPhase.jar -g /path/to/genomic/regions/to/be/phased/file/allGeneRegionsCanonical.HG19.GRCh37.bed \
--a /path/to/vcf/containing/all/variants/sample.vcf.gz -p PID12345 /
+-a /path/to/vcf/containing/all/variants/sample.vcf.gz -p PID12345 \
 -r /path/to/bams/containing/reads/DNAseq.reads.bam,/path/to/bams/containing/reads/RNAseq.reads.bam -m 60,255 \
 -d /path/to/ped/family.ped -t -o /path/to/desired/output/file/output.tsv
 ```
