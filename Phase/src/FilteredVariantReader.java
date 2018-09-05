@@ -16,6 +16,7 @@ import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
+import htsjdk.variant.vcf.VCFContigHeaderLine;
 import htsjdk.variant.vcf.VCFFileReader;
 
 public class FilteredVariantReader {
@@ -129,6 +130,18 @@ public class FilteredVariantReader {
 					chrCheckAllVCFReader.close();
 					throw new Exception("All variants file must contain at least one variant!");
 				}
+				
+				// See which contigs are present in file
+				List<VCFContigHeaderLine> contigHeaders = chrCheckAllVCFReader.getFileHeader().getContigLines();
+				for(VCFContigHeaderLine contigHeader : contigHeaders) {
+					String contig = contigHeader.getID();
+					if(contig.startsWith("chr")){
+						contig = contig.substring(3, contig.length());
+					}
+					allVarsContigs.add(contig);
+				}
+				
+				
 				chrCheckAllVCFReader.close();
 				
 				return;
@@ -265,12 +278,8 @@ public class FilteredVariantReader {
 	
 	
 	public boolean contigImportantCheck(String contig) {
-		if(paired){
+		if(paired || gzipVCF){
 			return allVarsContigs.contains(contig);
-		}
-		
-		if(gzipVCF){
-			return true;
 		}
 		
 		return contigPointers.containsKey(contig);

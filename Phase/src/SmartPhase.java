@@ -480,7 +480,6 @@ public class SmartPhase {
 			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
 				continue;
 			}
-
 			
 			contigSwitch = false;
 			if (!prevContig.equals(intervalContig)) { 
@@ -606,37 +605,40 @@ public class SmartPhase {
 							blocksExamined++;
 							allBlockVarsLoop:
 							for (VariantContext var : allBlockVars) {
-								String[] currentGoldenSplit = grabSimilarVarFromList(var, regionFiltVariantList).getGenotype(PATIENT_ID).getGenotypeString(false)
-										.split("\\|");
-								String currentStrand = phasedBlock.getStrand(var).toString();
-								if (prevStrand != null) {
-									// Check if either var belongs to notPhased group
-									for (VariantContext notSeenVar : neverSeenVariants) {
-										if (varsAreSimilar(notSeenVar, var) || varsAreSimilar(notSeenVar, prevVar)) {
-											double confidence = phasedBlock.calculateConfidence(var, prevVar);
-											if(confidence != 1) {
-												phaseConnections -= 1;
-												continue allBlockVarsLoop;
+								VariantContext simVar = grabSimilarVarFromList(var, regionFiltVariantList);
+								if(simVar != null) {
+									String[] currentGoldenSplit = simVar.getGenotype(PATIENT_ID).getGenotypeString(false)
+											.split("\\|");
+									String currentStrand = phasedBlock.getStrand(var).toString();
+									if (prevStrand != null) {
+										// Check if either var belongs to notPhased group
+										for (VariantContext notSeenVar : neverSeenVariants) {
+											if (varsAreSimilar(notSeenVar, var) || varsAreSimilar(notSeenVar, prevVar)) {
+												double confidence = phasedBlock.calculateConfidence(var, prevVar);
+												if(confidence != 1) {
+													phaseConnections -= 1;
+													continue allBlockVarsLoop;
+												}
 											}
 										}
+										
+										boolean goldenCis = false;
+										
+										if ((currentGoldenSplit[0].indexOf("*") != -1 && prevGoldenSplit[0].indexOf("*") != -1)
+												|| (currentGoldenSplit[1].indexOf("*") != -1
+												&& prevGoldenSplit[1].indexOf("*") != -1)) {
+											goldenCis = true;
+										}
+										
+										boolean predictCis = prevStrand.equals(currentStrand);
+										if ((predictCis && !goldenCis) || (!predictCis && goldenCis)) {
+											switchError++;
+										}
 									}
-									
-									boolean goldenCis = false;
-
-									if ((currentGoldenSplit[0].indexOf("*") != -1 && prevGoldenSplit[0].indexOf("*") != -1)
-											|| (currentGoldenSplit[1].indexOf("*") != -1
-													&& prevGoldenSplit[1].indexOf("*") != -1)) {
-										goldenCis = true;
-									}
-									
-									boolean predictCis = prevStrand.equals(currentStrand);
-									if ((predictCis && !goldenCis) || (!predictCis && goldenCis)) {
-										switchError++;
-									}
+									prevStrand = currentStrand;
+									prevGoldenSplit = currentGoldenSplit;
+									prevVar = var;	
 								}
-								prevStrand = currentStrand;
-								prevGoldenSplit = currentGoldenSplit;
-								prevVar = var;
 							}
 							totalSwitchError += switchError;
 						}
