@@ -12,7 +12,7 @@ SmartPhase is offered as an executable jar in addition to its source code. The f
 
 ## Use Case
 
-Clone the repository to your file system and execute the following command from the root folder:
+Clone the repository to your file system and execute the following command from the smart-phase folder:
 
 ```
 java -jar smartPhase.jar -a ./Validation/UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p NA12878 \
