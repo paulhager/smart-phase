@@ -182,6 +182,7 @@ public class SmartPhase {
 		final File inputPEDIGREE;
 		PedFile familyPed = null;
 		final File inputVCF_FILTER;
+		Set<String> unimportantContigs = new HashSet<>();
 		
 		if(cmd.hasOption(filteredVariantsOption.getOpt())) {
 			inputVCF_FILTER = new File(cmd.getOptionValue(filteredVariantsOption.getOpt()));
@@ -478,6 +479,10 @@ public class SmartPhase {
 															: intervalContig + "-" + intervalStart + "-" + intervalEnd;
 
 			if (!filteredVCFReader.contigImportantCheck(intervalContig)) {
+				if(!unimportantContigs.contains(intervalContig)) {
+					System.out.println("Intervals skipped because contig "+intervalContig+" not considered important. This is because the contig was either not found in the filtered variants file provided or not marked as present in the header of the VCF.");					
+					unimportantContigs.add(intervalContig);
+				}
 				continue;
 			}
 			
