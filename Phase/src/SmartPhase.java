@@ -745,8 +745,10 @@ public class SmartPhase {
 						if (notPhased && PHYSICAL_PHASING) {
 							// Check if physical phasing info from GATK can
 							// phase
+							
 							String ppInnerKey = constructPPKey(innerVariant);
 							String ppOuterKey = constructPPKey(outerVariant);
+							
 							if (physicalPhasingPIDMap.containsKey(ppInnerKey)
 									&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
 											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
@@ -921,9 +923,13 @@ public class SmartPhase {
 	}
 	
 	private static String constructPPKey(VariantContext var) {
-		return var.getContig() + "|" + var.getStart() + "|"
+		return chrStripper(var.getContig()) + "|" + var.getStart() + "|"
 				+ var.getEnd() + var.getReference().getDisplayString() + "|"
 				+ var.getAlternateAllele(0).getDisplayString();
+	}
+	
+	private static String chrStripper(String varString) {
+		return varString.startsWith("chr") ? varString.substring(3) : varString;
 	}
 
 	private static int countReads(Interval interval, VariantContext vc1, VariantContext vc2) {
