@@ -1,4 +1,23 @@
+//  Copyright (C) 2018 the SmartPhase contributors.
+//  Website: https://github.com/paulhager/smart-phase
+//
+//  This file is part of the SmartPhase phasing tool.
+//
+//  The SmartPhase phasing tool is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import java.io.BufferedReader;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -568,7 +587,7 @@ public class SmartPhase {
 				System.out.println("Trio size: " + trioPhasedVariants.size());
 			} else if (PHYSICAL_PHASING) {
 				physicalPhasingPIDMap.clear();
-				physicalPhasing(variantsToPhase.iterator());
+				variantsToPhase.iterator().forEachRemaining(v -> fillPhysicalPhasingMap(v));
 			}
 
 			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
@@ -1719,13 +1738,8 @@ public class SmartPhase {
 			Genotype patientGT = var.getGenotype(PATIENT_ID);
 
 			// Analyse PID and PGT
-			if (PHYSICAL_PHASING && patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
-				String PID = (String) patientGT.getAnyAttribute("PID");
-				String PGT = (String) patientGT.getAnyAttribute("PGT");
-				String key = constructPPKey(var);
-
-				physicalPhasingPIDMap.put(key, PID);
-				physicalPhasingPGTMap.put(key, PGT);
+			if (PHYSICAL_PHASING) {
+				fillPhysicalPhasingMap(var);
 			}
 
 			// RESULTS
@@ -1887,22 +1901,16 @@ public class SmartPhase {
 		// Returns only phased variants
 		return outVariants;
 	}
-
-	public static void physicalPhasing(Iterator<VariantContext> inVariantsIterator) {
-		while (inVariantsIterator.hasNext()) {
-
-			VariantContext var = inVariantsIterator.next();
-			Genotype patientGT = var.getGenotype(PATIENT_ID);
-
-			// Analyse PID and PGT
-			if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
-				String PID = (String) patientGT.getAnyAttribute("PID");
-				String PGT = (String) patientGT.getAnyAttribute("PGT");
-				String key = constructPPKey(var);
-
-				physicalPhasingPIDMap.put(key, PID);
-				physicalPhasingPGTMap.put(key, PGT);
-			}
+	
+	public static void fillPhysicalPhasingMap(VariantContext var) {
+		Genotype patientGT = var.getGenotype(PATIENT_ID);
+		if (patientGT.hasAnyAttribute("PGT") && patientGT.hasAnyAttribute("PID")) {
+			String PID = (String) patientGT.getAnyAttribute("PID");
+			String PGT = (String) patientGT.getAnyAttribute("PGT");
+			String key = constructPPKey(var);
+	
+			physicalPhasingPIDMap.put(key, PID);
+			physicalPhasingPGTMap.put(key, PGT);
 		}
 	}
 
