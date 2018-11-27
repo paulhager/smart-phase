@@ -1926,11 +1926,6 @@ public class SmartPhase {
 		Iterator<HaplotypeBlock> hapBlockIt = currentBlocks.iterator();
 		HaplotypeBlock curBlock = null;
 		VariantContext prevTrioVar = null;
-		if (hapBlockIt.hasNext()) {
-			curBlock = hapBlockIt.next();
-		} else {
-			return currentBlocks;
-		}
 		int mergeBlockCntr = 2;
 		int posMergeBlockCntr1;
 		int posMergeBlockCntr2;
