@@ -1786,10 +1786,9 @@ public class SmartPhase {
 			if (motherGT.isNoCall() || fatherGT.isNoCall()) {
 				continue;
 			}
-
+			
 			boolean innoc = false;
-			if ((motherGT.isHomVar() && fatherGT.isHet()) || (fatherGT.isHomVar() && motherGT.isHet())
-					|| (motherGT.isHomVar() && fatherGT.isHomVar())
+			if (motherGT.isHomVar() || fatherGT.isHomVar()
 					|| (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) && patientGT.isHet()) {
 				innoc = true;
 			}

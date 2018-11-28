@@ -82,7 +82,6 @@ public class FilteredVariantReader {
 			} 
 			
 			if(this.paired){
-				line = raFile.readLine();
 				while(true) {
 					try {
 						line = raFile.readLine();
