@@ -1950,11 +1950,6 @@ public class SmartPhase {
 						mergeBlockCntr++;
 						prevTrioVar = trioVar;
 						hapBlockIt.remove();
-						if (hapBlockIt.hasNext()) {
-							curBlock = hapBlockIt.next();
-						} else {
-							break HapBlockLoop;
-						}
 						continue HapBlockLoop;
 					}
 					hapBlockIt.remove();
