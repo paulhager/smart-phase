@@ -204,6 +204,9 @@ public class HaplotypeBlock {
 	 */
 	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
+			if(posVC == null || vc == null) {
+				debug();
+			}
 			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
 				return posVC;
@@ -747,6 +750,22 @@ public class HaplotypeBlock {
 	public void updateHMC() {
 		if (possibleHMBC > highestMergedBlockCounter) {
 			highestMergedBlockCounter = possibleHMBC;
+		}
+	}
+	
+	public void debug() {
+		for(VariantContext s1Var : this.strand1) {
+			System.out.println(s1Var.getStart());
+			if(s1Var.hasAttribute("Preceding")) {
+				VariantContext preceding = (VariantContext) s1Var.getAttribute("Preceding");
+				System.out.println("Preceding: "+preceding.getStart());
+			}
+			if(s1Var.hasAttribute("Preceding")) {
+				VariantContext linkedPreceding = (VariantContext) s1Var.getAttribute("linkedPreceding");
+				System.out.println("linkedPreceding: "+linkedPreceding.getStart());
+			}
+			
+			System.out.println(s1Var.getAttributeAsInt("mergedBlocks", -1));
 		}
 	}
 
