@@ -1142,6 +1142,9 @@ public class SmartPhase {
 				countEvidence(r, variantsToPhase);
 			}
 		}
+		
+		removeNotFoundVarsFromEvidences(variantsToPhase);
+		
 		trimmedRecords = null;
 
 		// No reads found spanning two vars. Creating new HB for each variant so
@@ -1243,13 +1246,6 @@ public class SmartPhase {
 					0.0);
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
-			
-			/*
-			if(neverSeenVariants.contains(firstVar) || neverSeenVariants.contains(secondVar)) {
-				cisCounter = 0;
-				transCounter = 0;
-			}
-			*/
 
 			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
@@ -1452,6 +1448,18 @@ public class SmartPhase {
 		// twice for overlapping intervals.
 		return intervalBlocks;
 	}
+	
+	private static void removeNotFoundVarsFromEvidences(ArrayList<VariantContext> variantsToPhase) {
+		HashSet<VariantContext> key = new HashSet<VariantContext>();
+		for(VariantContext neverSeenVar : neverSeenVariants) {
+			for(VariantContext var : variantsToPhase) {
+				key.clear();
+				key.add(var);
+				key.add(neverSeenVar);
+				phaseCounter.remove(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS));
+			}
+		}
+	}
 
 	// Merge blocks if variant is part of read pair
 	private static HaplotypeBlock mergePairedReads(VariantContext firstVar, VariantContext secondVar,
@@ -1479,13 +1487,7 @@ public class SmartPhase {
 					double observedCounter = phaseCounter.getOrDefault(
 							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
 							Double.MAX_VALUE);
-					
-					/*
-					if(neverSeenVariants.contains(connectionVar) || neverSeenVariants.contains(secondVar)) {
-						cisCounter = 0;
-						transCounter = 0;
-					}
-					*/
+				
 					
 					double confidence = Math
 							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
