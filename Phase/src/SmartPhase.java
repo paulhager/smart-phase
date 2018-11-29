@@ -742,34 +742,32 @@ public class SmartPhase {
 							}
 						}
 
-						if (notPhased && PHYSICAL_PHASING) {
-							// Check if physical phasing info from GATK can
-							// phase
-							
-							String ppInnerKey = constructPPKey(innerVariant);
-							String ppOuterKey = constructPPKey(outerVariant);
-							
-							if (physicalPhasingPIDMap.containsKey(ppInnerKey)
-									&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
-											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
-								String innerVarPhase = physicalPhasingPGTMap.get(ppInnerKey);
-								String outerVarPhase = physicalPhasingPGTMap.get(ppOuterKey);
-
-								ppPhased++;
-
-								notPhased = false;
-								totalConfidence = 1;
-								isTrans = (innerVarPhase.equals(outerVarPhase)) ? false : true;
-								isCis = isTrans ? false : true;
-							} else {
-								totalConfidence = 0;
-							}
-						}
 
 						for (VariantContext notSeenVar : neverSeenVariants) {
 							if (varsAreSimilar(notSeenVar, outerVariant)
 									|| varsAreSimilar(notSeenVar, innerVariant)) {
 								neverSeenFlag = true;
+								if (PHYSICAL_PHASING) {
+									// Check if physical phasing info from GATK can
+									// phase
+									
+									String ppInnerKey = constructPPKey(innerVariant);
+									String ppOuterKey = constructPPKey(outerVariant);
+									
+									if (physicalPhasingPIDMap.containsKey(ppInnerKey)
+											&& physicalPhasingPIDMap.containsKey(ppOuterKey) && physicalPhasingPIDMap
+											.get(ppInnerKey).equals(physicalPhasingPIDMap.get(ppOuterKey))) {
+										String innerVarPhase = physicalPhasingPGTMap.get(ppInnerKey);
+										String outerVarPhase = physicalPhasingPGTMap.get(ppOuterKey);
+										
+										ppPhased++;
+										
+										notPhased = false;
+										totalConfidence = 1;
+										isTrans = (innerVarPhase.equals(outerVarPhase)) ? false : true;
+										isCis = isTrans ? false : true;
+									}
+								}
 								if (totalConfidence != 1) {
 									notPhased = true;
 									isTrans = false;
@@ -1112,12 +1110,12 @@ public class SmartPhase {
 					// links for merging down the road
 					ArrayList<VariantContext> randomVars = new ArrayList<VariantContext>();
 					VariantContext ranVar;
-					ranVar = countEvidence(r, variantsToPhase);
+					ranVar = countEvidence(r, variantsToPhase, true);
 					if (ranVar != null) {
 						randomVars.add(ranVar);
 					}
 					for (SAMRecord pairedRecord : allPairedRecords) {
-						ranVar = countEvidence(pairedRecord, variantsToPhase);
+						ranVar = countEvidence(pairedRecord, variantsToPhase, true);
 						if (ranVar != null) {
 							randomVars.add(ranVar);
 						}
@@ -1139,11 +1137,11 @@ public class SmartPhase {
 					}
 				}
 			} else {
-				countEvidence(r, variantsToPhase);
+				countEvidence(r, variantsToPhase, false);
 			}
 		}
 		
-		removeNotFoundVarsFromEvidences(variantsToPhase);
+		//removeNotFoundVarsFromEvidences(variantsToPhase);
 		
 		trimmedRecords = null;
 
@@ -1449,6 +1447,7 @@ public class SmartPhase {
 		return intervalBlocks;
 	}
 	
+	/*
 	private static void removeNotFoundVarsFromEvidences(ArrayList<VariantContext> variantsToPhase) {
 		HashSet<VariantContext> key = new HashSet<VariantContext>();
 		for(VariantContext neverSeenVar : neverSeenVariants) {
@@ -1460,6 +1459,7 @@ public class SmartPhase {
 			}
 		}
 	}
+	*/
 
 	// Merge blocks if variant is part of read pair
 	private static HaplotypeBlock mergePairedReads(VariantContext firstVar, VariantContext secondVar,
@@ -1529,7 +1529,7 @@ public class SmartPhase {
 		return null;
 	}
 
-	private static VariantContext countEvidence(SAMRecord r, ArrayList<VariantContext> variantsToPhase)
+	private static VariantContext countEvidence(SAMRecord r, ArrayList<VariantContext> variantsToPhase, boolean pairedEndRead)
 			throws Exception {
 		// Calculate end of first exon and start of second to find vars at
 		// edges for RNAseq data
@@ -1705,11 +1705,13 @@ public class SmartPhase {
 				NOT_SeenInRead.add(v);
 			}
 		}
-		for(int index = 0; index < trimPosVarsInRead.size(); index++) {
-			VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
-			if(!neverSeenVariants.contains(possibleLinkerVar)) {
-				return possibleLinkerVar;
-			}
+		if(pairedEndRead) {
+			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
+				VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
+				if(!neverSeenVariants.contains(possibleLinkerVar)) {
+					return possibleLinkerVar;
+				}
+			}			
 		}
 		return null;
 	}
