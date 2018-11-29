@@ -1353,11 +1353,11 @@ public class SmartPhase {
 							.attribute("ReadConfidence", confidence).make())
 					.attribute("Preceding", firstVar).make();
 
-			if (cisCounter > transCounter && !neverSeenVariants.contains(firstVar) && !neverSeenVariants.contains(secondVar)) {
+			if (cisCounter > transCounter) {
 				globalCisLength += (secondVar.getEnd() - firstVar.getStart());
 				globalCis++;
 				hapBlock.addVariant(newVar, firstVarStrand);
-			} else if (transCounter > cisCounter && !neverSeenVariants.contains(firstVar) && !neverSeenVariants.contains(secondVar)) {
+			} else if (transCounter > cisCounter) {
 				globalTransLength += (secondVar.getEnd() - firstVar.getStart());
 				globalTrans++;
 				hapBlock.addVariant(newVar, hapBlock.getOppStrand(firstVarStrand));
