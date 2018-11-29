@@ -205,7 +205,7 @@ public class HaplotypeBlock {
 	public VariantContext getSimVC(VariantContext vc) {
 		for (VariantContext posVC : strand1) {
 			if(posVC == null || vc == null) {
-				debug();
+				//debug();
 			}
 			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
