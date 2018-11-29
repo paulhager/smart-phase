@@ -1244,10 +1244,12 @@ public class SmartPhase {
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 			
+			/*
 			if(neverSeenVariants.contains(firstVar) || neverSeenVariants.contains(secondVar)) {
 				cisCounter = 0;
 				transCounter = 0;
 			}
+			*/
 
 			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
@@ -1478,10 +1480,12 @@ public class SmartPhase {
 							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
 							Double.MAX_VALUE);
 					
+					/*
 					if(neverSeenVariants.contains(connectionVar) || neverSeenVariants.contains(secondVar)) {
 						cisCounter = 0;
 						transCounter = 0;
 					}
+					*/
 					
 					double confidence = Math
 							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
