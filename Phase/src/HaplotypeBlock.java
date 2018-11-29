@@ -638,9 +638,7 @@ public class HaplotypeBlock {
 				return v;
 			}
 		}
-
 		throw new Exception("NO LINKER VAR FOUND. Searching in block of: " + linkerBlockVC.toStringDecodeGenotypes());
-
 	}
 
 	private VariantContext calcLinkerVar(VariantContext linkerBlockVC) throws Exception {
