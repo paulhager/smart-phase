@@ -1705,6 +1705,8 @@ public class SmartPhase {
 				NOT_SeenInRead.add(v);
 			}
 		}
+		return trimPosVarsInRead.get(0);
+		/*
 		if(pairedEndRead) {
 			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
 				VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
@@ -1714,6 +1716,7 @@ public class SmartPhase {
 			}			
 		}
 		return null;
+		*/
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
