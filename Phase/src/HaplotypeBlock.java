@@ -270,9 +270,6 @@ public class HaplotypeBlock {
 		
 		// Get final product confidence score using trio
 		ConfidencePair<Double, Integer> cpTrio1 = multiplyConfidence(vc1, nearestTrioVC1);
-		if(nearestTrioVC1.getGenotype(PATIENT_ID) == null || cpTrio1 == null || nearestTrioVC1 == null || nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence") == null){
-			System.out.println("hi");
-		}
 		cpTrio1.setConfidence(cpTrio1.confidence()
 				* (double) nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 
