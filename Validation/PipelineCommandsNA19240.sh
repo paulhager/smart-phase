@@ -146,34 +146,28 @@ for f in sim/YRI/*1.fq.gz; do
 done
 
 # Extract variants in kit and intersection of kit with gencode coding exons regions
-bedtools intersect -a reference/AGV6UTR_covered_merged.bed -b reference/hg19_GENCODEv27lift37_codingExons_sorted_nochrM_merged.bed > reference/intersect.AGV6UTR.hg19GENCODE_codingExons.bed
+bedtools intersect -a reference/AGV6UTR_covered_merged.bed -b reference/allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed > reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.bed
 
-cut -c4- reference/intersect.AGV6UTR.hg19GENCODE_codingExons.bed > reference/intersect.AGV6UTR.hg19GENCODE_codingExons.cut.bed
-cut -c4- reference/AGV6UTR_covered_merged.bed > reference/AGV6UTR_covered_merged.cut.bed
+cut -c4- reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.bed > reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.cut.bed
 
 for f in sim/YRI/sim.YRI.trio.*.phased.vcf; do
-  out1=${f/.vcf/.AGV6UTR.hg19GENCODE_codingExons}
-  out2=${f/.vcf/.AGV6UTR}
+  out=${f/.vcf/.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37}
 
-  vcftools --vcf $f --bed reference/intersect.AGV6UTR.hg19GENCODE_codingExons.cut.bed --out $out1 --recode --keep-INFO-all
-  vcftools --vcf $f --bed reference/AGV6UTR_covered_merged.cut.bed --out $out2 --recode --keep-INFO-all
+  vcftools --vcf $f --bed reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.cut.bed --out $out --recode --keep-INFO-all
 
-  out1=$out1.recode.vcf
-  out2=$out2.recode.vcf
+  out=$out.recode.vcf
 
-  bgzip -c $out1 > $out1.gz
-  bgzip -c $out2 > $out2.gz
+  bgzip -c $out > $out.gz
 
-  tabix $out1.gz
-  tabix $out2.gz
+  tabix $out.gz
 done
 
 # Run SmartPhase
 
-java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.recode.vcf.gz -p NA19240 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr1.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/YRI.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/YRI/smartPhase.sim.NA19240.chr1.trio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v -t
+java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA19240 -r sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr1.bam -m 60 -d reference/YRI.ped -o results/smartPhase.sim.NA19240.chr1.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
 
-java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.recode.vcf.gz -p NA19240 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr1.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/YRI.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/YRI/smartPhase.sim.NA19240.chr1.NOtrio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v
+java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/YRI/sim.YRI.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA19240 -r sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr1.bam -m 60 -d reference/YRI.ped -o results/smartPhase.sim.NA19240.chr1.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
 
-java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p NA19240 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr19.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/YRI.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/YRI/smartPhase.sim.NA19240.chr19.trio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v -t
+java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA19240 -r sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr19.bam -m 60 -d reference/YRI.ped -o results/smartPhase.sim.NA19240.chr19.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
 
-java -jar smartPhase.jar -g /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/allGeneRegionsCanonical.HG19.GRCh37.bed -f /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.hg19GENCODE_codingExons.recode.vcf.gz -a /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.recode.vcf.gz -p NA19240 -r /Users/paulhager/Documents/SmartPhase/Publication/Comparison/sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr19.bam -m 60 -d /Users/paulhager/Documents/SmartPhase/Publication/Comparison/reference/YRI.ped -o /Users/paulhager/Documents/SmartPhase/Publication/Comparison/results/YRI/smartPhase.sim.NA19240.chr19.NOtrio.AGV6UTR.GENCODE_cE.canonicalGenes.results.tsv -x -v
+java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/YRI/sim.YRI.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA19240 -r sim/YRI/simulated.art.hsxt.150l.100fc.400m.100s.NA19240.chr19.bam -m 60 -d reference/YRI.ped -o results/smartPhase.sim.NA19240.chr19.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
