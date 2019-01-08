@@ -16,12 +16,15 @@ STARTING CONFIGURATION
 	..//genetic_map_chr1_combined_b37.txt
 	..//1000GP_Phase3_chr1.legend.gz
 	..//1000GP_Phase3_chr1.hap.gz
+  ..//human_g1k_v37.fasta
 	..//AGV6UTR_covered_merged.bed # Don't know where Tim got this from
   ..//allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed # Can't be downloaded automatically
 
 chromosomes=(1 19)
 
 # Preliminary work that only needs to be done once
+rm -r ./sim
+mkdir sim
 rm -r ./reference
 mkdir ./reference
 rm -r ./whatshap-comparison-experiments
@@ -29,8 +32,12 @@ mkdir ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments/scripts
 curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
 curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -o ./reference/human_g1k_v37.fasta.gz
+gunzip -c ./reference/human_g1k_v37.fasta.gz > ./reference/human_g1k_v37.fasta
+samtools faidx reference/human_g1k_v37.fasta
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/artificial-child.py -o ./whatshap-comparison-experiments/scripts/artificial-child.py
+chmod 777 ./whatshap-comparison-experiments/scripts/artificial-child.py
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/genomesimulator.py -o ./whatshap-comparison-experiments/scripts/genomesimulator.py
+chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
 for chrNum in ${chromosomes[@]}; do
   curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.hap.gz -o ./reference/1000GP_Phase3_chr$chrNum.hap.gz
   curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.legend.gz -o ./reference/1000GP_Phase3_chr$chrNum.legend.gz
@@ -48,20 +55,21 @@ for iteration in 1 2; do
   case "$iteration" in
   "1")
     sample=CEU
-    family=(NA12878 NA12891 NA12892)
-    parents=(NA12891 NA12892)
     father=NA12891
     mother=NA12892
     child=NA12878
+    parents=($mother $father)
+    family=($child $mother $father)
     allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
     ;;
   "2")
     sample=YRI
-    family=(NA19238 NA19239 NA19240)
     parents=(NA19238 NA19239)
     father=NA19239
     mother=NA19238
     child=NA19240
+    parents=($mother $father)
+    family=($child $mother $father)
     allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.vcf.gz
     ;;
   *)
@@ -71,6 +79,8 @@ for iteration in 1 2; do
   # Clean and create structure
   rm -r ./$sample
   mkdir ./$sample
+
+  mkdir ./sim/$sample
 
   # Download required files
   allVCFFile=${allVCFPath/*\//}
