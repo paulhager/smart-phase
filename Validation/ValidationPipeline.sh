@@ -64,7 +64,6 @@ for iteration in 1 2; do
     ;;
   "2")
     sample=YRI
-    parents=(NA19238 NA19239)
     father=NA19239
     mother=NA19238
     child=NA19240
