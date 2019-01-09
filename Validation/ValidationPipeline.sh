@@ -81,6 +81,7 @@ for iteration in 1 2; do
   mkdir ./$sample
 
   mkdir ./sim/$sample
+  mkdir -p sim/tmp
 
   # Download required files
   allVCFFile=${allVCFPath/*\//}
@@ -110,20 +111,16 @@ for iteration in 1 2; do
   shapeit -convert --input-haps shapeit/NA12878.trio.chr19 --output-vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr19_biallelic_phased.vcf > shapeit/NA12878.trio.chr19.phased.vcf.log 2>&1
 #@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
 
-  # Split VCF into three
   for chrNum in ${chromosomes[@]}; do
+    # Split VCF into three
     for familyMember in ${family[@]}; do
       bcftools view -s $familyMember $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr${chrNum}_biallelic_phased.vcf.gz > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$familyMember.chr${chrNum}_biallelic_phased.vcf
     done
-  done
 
-  # Create artifical child
-  for chrNum in ${chromosomes[@]}; do
+    # Create artifical child
     whatshap-comparison-experiments/scripts/artificial-child.py reference/genetic_map_chr${chrNum}.txt $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf $child sim/$sample/$sample.$father.chr${chrNum}.true.recomb sim/$sample/$sample.$mother.chr${chrNum}.true.recomb > sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf
-  done
 
-  # Merge artifical trio
-  for chrNum in ${chromosomes[@]}; do
+    # Merge artifical trio
     for parent in ${parents[@]}; do
       bgzip -c $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
       tabix $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
@@ -133,12 +130,8 @@ for iteration in 1 2; do
     tabix sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz
 
     vcf-merge $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf.gz $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf.gz sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz > sim/$sample/sim.$sample.trio.chr${chrNum}.phased.vcf
-  done
 
-  # Create child true haplotype fastas
-  mkdir -p sim/tmp
-
-  for chrNum in ${chromosomes[@]}; do
+    # Create child true haplotype fastas
     whatshap-comparison-experiments/scripts/genomesimulator.py -c $chrNum sim/$sample/sim.$sample.$child.chr$chrNum.phased.vcf reference/human_g1k_v37.fasta sim/tmp/
   done
 
@@ -222,12 +215,10 @@ for iteration in 1 2; do
   done
 
   # Run SmartPhase
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr1.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr1.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
+  for chrNum in ${chromosomes[@]}; do
+    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
 
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr1.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr1.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
-
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr19.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
-
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr19.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
+    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
+  done
 
 done
