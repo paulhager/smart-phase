@@ -126,7 +126,9 @@ public class HaplotypeBlock {
 				blockEnd = vc.getEnd();
 			}
 		}
-		possibleHMBC = highestBC;
+		if(highestBC > possibleHMBC) {
+			possibleHMBC = highestBC;			
+		}
 		return highestBC;
 	}
 
@@ -747,6 +749,36 @@ public class HaplotypeBlock {
 	public void updateHMC() {
 		if (possibleHMBC > highestMergedBlockCounter) {
 			highestMergedBlockCounter = possibleHMBC;
+		}
+	}
+	
+	public void debug() {
+		System.out.println("\nSTRAND1\n");
+		for(VariantContext s1Var : this.strand1) {
+			printVarStats(s1Var);
+		}
+		System.out.println("------");
+		System.out.println("STRAND2\n");
+		for(VariantContext s2Var : this.strand2) {
+			printVarStats(s2Var);
+		}
+	}
+	
+	public void printVarStats(VariantContext var) {
+		System.out.println(var.getStart());
+		if(var.hasAttribute("Preceding")) {
+			VariantContext preceding = (VariantContext) var.getAttribute("Preceding");
+			if(preceding != null) {
+				System.out.println("Preceding: "+preceding.getStart());				
+			}
+		}
+		if(var.hasAttribute("linkedPreceding")) {
+			VariantContext linkedPreceding = (VariantContext) var.getAttribute("linkedPreceding");
+			System.out.println("linkedPreceding: "+linkedPreceding.getStart());
+		}
+		System.out.println("mergedBlocks: "+var.getAttributeAsInt("mergedBlocks", -1));
+		if(var.hasAttribute("TrioConfidence")) {
+			System.out.println("Trio");
 		}
 	}
 

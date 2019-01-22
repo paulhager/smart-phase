@@ -276,6 +276,11 @@ public class SmartPhase {
 				SAMRecordIterator chrCheckSAMIterator = samReaderCheck.iterator();
 				if(chrCheckSAMIterator.hasNext()) {
 					SAMRecord firstRecord = chrCheckSAMIterator.next();
+					while(firstRecord.getContig() == null) {
+						if(chrCheckSAMIterator.hasNext()) {
+							firstRecord = chrCheckSAMIterator.next();
+						}
+					}
 					if(firstRecord.getContig().startsWith("chr")) {
 						if(i > 0 && readsStartWithChr == false) {
 							throw new Exception("All bam contigs must be uniform and start with chr or not. Mixing is not allowed.");
@@ -841,6 +846,15 @@ public class SmartPhase {
 				for (VariantContext missingVar : missingVars) {
 					System.err.println("Could not find variant: " + constructVariantString(missingVar));
 				}
+				
+				/*
+				//Inform user of found vars
+				for(VariantContext posVoundVar: regionFiltVariantList) {
+					if(!missingVars.contains(posVoundVar)) {
+						System.err.println("Found variant: " + posVoundVar.getStart());
+					}
+				}
+				*/
 
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -1705,8 +1719,7 @@ public class SmartPhase {
 				NOT_SeenInRead.add(v);
 			}
 		}
-		return trimPosVarsInRead.get(0);
-		/*
+	
 		if(pairedEndRead) {
 			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
 				VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
@@ -1716,7 +1729,7 @@ public class SmartPhase {
 			}			
 		}
 		return null;
-		*/
+		
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
