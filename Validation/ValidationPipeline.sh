@@ -1,22 +1,20 @@
-Pipeline Commands NA12878
+#!/bin/bash
 
-DOWNLOAD LOCATIONS:
+# DOWNLOAD LOCATIONS
 ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/NA12878_HG001/latest/GRCh37/
 ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/
 
-STARTING CONFIGURATION
+# STARTING CONFIGURATION
 
-.//$sample
-    ..//$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
-
-.//shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
-.//whatshap-comparison-experiments
-.//reference
-	..//1000GP_Phase3.sample
-	..//genetic_map_chr1_combined_b37.txt
-	..//1000GP_Phase3_chr1.legend.gz
-	..//1000GP_Phase3_chr1.hap.gz
-  ..//human_g1k_v37.fasta
+./$sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
+./shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
+./whatshap-comparison-experiments
+./reference/
+	1000GP_Phase3.sample
+	genetic_map_chr1_combined_b37.txt
+	1000GP_Phase3_chr1.legend.gz
+	1000GP_Phase3_chr1.hap.gz
+  	human_g1k_v37.fasta
 	..//AGV6UTR_covered_merged.bed # Don't know where Tim got this from
   ..//allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed # Can't be downloaded automatically
 
@@ -100,6 +98,33 @@ for iteration in 1 2; do
   done
 
 #@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
+
+shapeit=/storageNGS/ngs1/software/shapeit.v2.r837.GLIBCv2.12.Linux.static/bin/shapeit
+vcftools=~/software/vcftools_0.1.15/bin/vcftools
+
+vcf=$1
+outdir=$( dirname $vcf )
+genmap=./resources/genetic_map_chr1_combined_b37.txt
+refhaps=./resources/1000GP_Phase3_chr1.hap.gz
+legend=./resources/1000GP_Phase3_chr1.legend.gz
+samples=./resources/1000GP_Phase3.sample
+
+
+$vcftools --gzvcf $vcf --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > ${vcf/.vcf.gz/_biallelic.vcf.gz}
+
+vcf=${vcf/.vcf.gz/_biallelic.vcf.gz}
+tabix -p vcf $vcf
+
+# 1st step
+$shapeit -check -V $vcf -M $genmap --input-ref $refhaps $legend $samples --output-log $outdir/trio.chr1 > $outdir/firstStep.out
+
+# 2nd step
+exclude=$outdir/trio.chr1.snp.strand.exclude
+$shapeit -V $vcf --exclude-snp $exclude -M $genmap --input-ref $refhaps $legend $samples -O $outdir/trio.chr1 > $outdir/secondStep.out
+
+# 3rd step
+$shapeit -convert --input-haps $outdir/trio.chr1 --output-vcf ${vcf/.vcf.gz/_phased.vcf.gz} > $outdir/thirdStep.out
+
   # Run SHAPEIT Check, then SHAPEIT, then convert to vcf
   shapeit -check -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample --output-log shapeit/NA12878.chr1 || true) > shapeit/NA12878.trio.chr1.check.log 2>&1
   shapeit -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf --exclude-snp shapeit/NA12878.trio.chr1.snp.strand.exclude' -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample -O $sample/NA12878.trio.chr1 > shapeit/NA12878.trio.chr1.run.log 2>&
