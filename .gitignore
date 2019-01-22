@@ -1,6 +1,8 @@
 UseCase/smartPhase*
+Validation/CEU
+Validation/YRI
 Validation/LICENCE
-Validation/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
+Validation/shapeit*
 Validation/partToExecute.sh
 Validation/bin
 Validation/reference

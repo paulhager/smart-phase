@@ -32,7 +32,7 @@ mkdir ./whatshap-comparison-experiments/scripts
 
 # download and prepare reference genome
 curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -o ./reference/human_g1k_v37.fasta.gz
-gunzip -c ./reference/human_g1k_v37.fasta.gz > ./reference/human_g1k_v37.fasta
+gunzip ./reference/human_g1k_v37.fasta.gz
 samtools faidx reference/human_g1k_v37.fasta
 
 # download required scripts provided by WhatsHap
@@ -47,7 +47,8 @@ tar -zxvf ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
 shapeit=./bin/shapeit
 rm -rf ./example
 
-curl $url_res/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
+gp_samples=./reference/1000GP_Phase3.sample
+curl $url_res/1000GP_Phase3.sample -o $gp_samples
 for chrNum in ${chromosomes[@]}; do
   curl $url_res/1000GP_Phase3_chr$chrNum.hap.gz -o ./reference/1000GP_Phase3_chr$chrNum.hap.gz
   curl $url_res/1000GP_Phase3_chr$chrNum.legend.gz -o ./reference/1000GP_Phase3_chr$chrNum.legend.gz
@@ -108,53 +109,35 @@ for iteration in 1 2; do
 
   # Unzip unphased vcfs
   allVCFFileUnzip=${allVCFFile/.gz/}
-  gunzip -c $sample/$allVCFFile > $sample/$allVCFFileUnzip 
+  gunzip $sample/$allVCFFile 
 
   for chrNum in ${chromosomes[@]}; do
+    allVCFFileUnzipChr=${allVCFFileUnzip/.vcf/.chr$chrNum.vcf}
     # Extract chr1 and chr19 from vcf
-    ""awk '/^#/ || ($1 == var)' var="$chrNum" $sample/$sample.wgs.consensus.20131118.snps_indels.*.genotypes.vcf > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr$chrNum.vcf""
+    ""awk '/^#/ || ($1 == var)' var="$chrNum" $sample/$allVCFFileUnzip > $sample/$allVCFFileUnzipChr""
 
     # Zip and index
-    bgzip -c $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr$chrNum.vcf > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr$chrNum.vcf.gz
-    tabix $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr$chrNum.vcf.gz
+    bgzip $sample/$allVCFFileUnzipChr
+    allVCFFileChr=$allVCFFileUnzipChr.gz
+    tabix -p vcf $sample/$allVCFFileChr
+
+    allVCFFileChrBiallelic=${allVCFFileChr/.vcf.gz/_biallelic.vcf.gz}
+    vcftools --gzvcf $allVCFFileChr --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > $allVCFFileChrBiallelic
+    tabix -p vcf $sample/$allVCFFileChrBiallelic
+
+    genmap=./reference/genetic_map_chr${chrNum}_combined_b37.txt
+    refhaps=./reference/1000GP_Phase3_chr${chrNum}.hap.gz
+    legend=./reference/1000GP_Phase3_chr${chrNum}.legend.gz
+    $shapeit -check -V $sample/$allVCFFileChrBiallelic -M $genmap --input-ref $refhaps $legend $gp_samples --output-log ./$sample/shapeit_check_chr${chrNum} > ./$sample/shapeit_check_chr${chrNum}.log 2>&1
+
+    exclude=./$sample/shapeit_check_chr${chrNum}.snp.strand.exclude
+    $shapeit -V $sample/$allVCFFileChrBiallelic --exclude-snp $exclude -M $genmap --input-ref $refhaps $legend $gp_samples -O ./$sample/shapeit_phase_chr${chrNum} > $sample/shapeit_phase_chr${chrNum}.log 2>&1
+
+    allVCFPhased=${allVCFFileChrBiallelic/.vcf.gz/_phased.vcf.gz}
+    $shapeit -convert --input-haps ./$sample/shapeit_phase_chr${chrNum} --output-vcf ./$sample/$allVCFPhased > ./$sample/shapeit_convert_chr${chrNum}.log 2>&1
   done
 
-#@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
-
-vcftools=~/software/vcftools_0.1.15/bin/vcftools
-
-vcf=$1
-outdir=$( dirname $vcf )
-genmap=./resources/genetic_map_chr1_combined_b37.txt
-refhaps=./resources/1000GP_Phase3_chr1.hap.gz
-legend=./resources/1000GP_Phase3_chr1.legend.gz
-samples=./resources/1000GP_Phase3.sample
-
-
-$vcftools --gzvcf $vcf --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > ${vcf/.vcf.gz/_biallelic.vcf.gz}
-
-vcf=${vcf/.vcf.gz/_biallelic.vcf.gz}
-tabix -p vcf $vcf
-
-# 1st step
-$shapeit -check -V $vcf -M $genmap --input-ref $refhaps $legend $samples --output-log $outdir/trio.chr1 > $outdir/firstStep.out
-
-# 2nd step
-exclude=$outdir/trio.chr1.snp.strand.exclude
-$shapeit -V $vcf --exclude-snp $exclude -M $genmap --input-ref $refhaps $legend $samples -O $outdir/trio.chr1 > $outdir/secondStep.out
-
-# 3rd step
-$shapeit -convert --input-haps $outdir/trio.chr1 --output-vcf ${vcf/.vcf.gz/_phased.vcf.gz} > $outdir/thirdStep.out
-
-  # Run SHAPEIT Check, then SHAPEIT, then convert to vcf
-  shapeit -check -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample --output-log shapeit/NA12878.chr1 || true) > shapeit/NA12878.trio.chr1.check.log 2>&1
-  shapeit -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf --exclude-snp shapeit/NA12878.trio.chr1.snp.strand.exclude' -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample -O $sample/NA12878.trio.chr1 > shapeit/NA12878.trio.chr1.run.log 2>&
-  shapeit -convert --input-haps shapeit/NA12878.trio.chr1 --output-vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1_biallelic_phased.vcf > shapeit/NA12878.trio.chr1.phased.vcf.log 2>&1
-
-  shapeit -check -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr19.vcf -M reference/genetic_map_chr19_combined_b37.txt --input-ref reference/1000GP_Phase3_chr19.hap.gz reference/1000GP_Phase3_chr19.legend.gz reference/1000GP_Phase3.sample --output-log shapeit/NA12878.chr19 || true) > shapeit/NA12878.trio.chr19.check.log 2>&1
-  shapeit -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr19.vcf --exclude-snp shapeit/NA12878.trio.chr19.snp.strand.exclude' -M reference/genetic_map_chr19_combined_b37.txt --input-ref reference/1000GP_Phase3_chr19.hap.gz reference/1000GP_Phase3_chr19.legend.gz reference/1000GP_Phase3.sample -O $sample/NA12878.trio.chr19 > shapeit/NA12878.trio.chr19.run.log 2>&
-  shapeit -convert --input-haps shapeit/NA12878.trio.chr19 --output-vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr19_biallelic_phased.vcf > shapeit/NA12878.trio.chr19.phased.vcf.log 2>&1
-#@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
+  rm $sample/$allVCFFileUnzip
 
   for chrNum in ${chromosomes[@]}; do
     # Split VCF into three
@@ -265,7 +248,5 @@ $shapeit -convert --input-haps $outdir/trio.chr1 --output-vcf ${vcf/.vcf.gz/_pha
 
     java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
   done
-
-  # Add commands for WhatsHap?
 
 done
