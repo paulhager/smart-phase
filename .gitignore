@@ -1,5 +1,6 @@
 UseCase/smartPhase*
 Validation/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
+Validation/partToExecute.sh
 Validation/bin
 Validation/reference
 Validation/sim
