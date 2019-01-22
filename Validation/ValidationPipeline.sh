@@ -1,51 +1,72 @@
 #!/bin/bash
 
+# STARTING CONFIGURATION (non-existing files will be downloaded)
+# ./bin/shapeit
+# ./CEU/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
+# ./YRI/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
+# ./reference/
+#	1000GP_Phase3.sample
+#	genetic_map_chr1_combined_b37.txt
+#	1000GP_Phase3_chr1.legend.gz
+#	1000GP_Phase3_chr1.hap.gz
+#  	human_g1k_v37.fasta
+# ./sim
+# ./whatshap-comparison-experiments
+capture_bed=../BED/AGV6UTR_covered_merged.bed
+gene_bed=../BED/allGeneRegionsCanonical.HG19.GRCh37.bed
+
 # DOWNLOAD LOCATIONS
-ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/NA12878_HG001/latest/GRCh37/
-ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/
-
-# STARTING CONFIGURATION
-
-./$sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
-./shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
-./whatshap-comparison-experiments
-./reference/
-	1000GP_Phase3.sample
-	genetic_map_chr1_combined_b37.txt
-	1000GP_Phase3_chr1.legend.gz
-	1000GP_Phase3_chr1.hap.gz
-  	human_g1k_v37.fasta
-	..//AGV6UTR_covered_merged.bed # Don't know where Tim got this from
-  ..//allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed # Can't be downloaded automatically
+ftp_vcf=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/
+url_res=http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/
 
 chromosomes=(1 19)
 
 # Preliminary work that only needs to be done once
-rm -r ./sim
+#rm -r ./sim
 mkdir sim
-rm -r ./reference
+#rm -r ./reference
 mkdir ./reference
-rm -r ./whatshap-comparison-experiments
+#rm -r ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments/scripts
-curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
+
+# download and prepare reference genome
 curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -o ./reference/human_g1k_v37.fasta.gz
 gunzip -c ./reference/human_g1k_v37.fasta.gz > ./reference/human_g1k_v37.fasta
 samtools faidx reference/human_g1k_v37.fasta
+
+# download required scripts provided by WhatsHap
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/artificial-child.py -o ./whatshap-comparison-experiments/scripts/artificial-child.py
 chmod 777 ./whatshap-comparison-experiments/scripts/artificial-child.py
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/genomesimulator.py -o ./whatshap-comparison-experiments/scripts/genomesimulator.py
 chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
+
+# download SHAPEIT binary and resources required to run it
+curl https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz -o ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
+tar -zxvf ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
+shapeit=./bin/shapeit
+
+curl $url_res/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
 for chrNum in ${chromosomes[@]}; do
-  curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.hap.gz -o ./reference/1000GP_Phase3_chr$chrNum.hap.gz
-  curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.legend.gz -o ./reference/1000GP_Phase3_chr$chrNum.legend.gz
-  curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/genetic_map_chr${chrNum}_combined_b37.txt -o ./reference/genetic_map_chr${chrNum}_combined_b37.txt
+  curl $url_res/1000GP_Phase3_chr$chrNum.hap.gz -o ./reference/1000GP_Phase3_chr$chrNum.hap.gz
+  curl $url_res/1000GP_Phase3_chr$chrNum.legend.gz -o ./reference/1000GP_Phase3_chr$chrNum.legend.gz
+  curl $url_res/genetic_map_chr${chrNum}_combined_b37.txt -o ./reference/genetic_map_chr${chrNum}_combined_b37.txt
   awk 'NR==1 {{print}} NR>1 {{print $1, $2*1.5, $3*1.5 }}' reference/genetic_map_chr${chrNum}_combined_b37.txt > reference/genetic_map_chr${chrNum}.txt
 done
 
-bedtools intersect -a reference/AGV6UTR_covered_merged.bed -b reference/allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed > reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.bed
+# preparing BED file representing captured protein-coding exons (intersection of captured regions and protein-coding genes)
+sorted_gene_bed=$( basename $gene_bed )
+sorted_gene_bed=./reference/${sorted_gene_bed/.bed/.sort.bed}
+sort -k1,1 -k2,2n $gene_bed > $sorted_gene_bed
 
-cut -c4- reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.bed > reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.cut.bed
+merged_gene_bed=${sorted_gene_bed/.bed/.merge.bed}
+bedtools merge -i $sorted_gene_bed > $merged_gene_bed
+
+intersect_bed=reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.bed
+bedtools intersect -a $capture_bed -b $merged_gene_bed > $intersect_bed
+
+intersect_cut_bed=${intersect_bed/.bed/.cut.bed}
+cut -c4- $intersect_bed > $intersect_cut_bed
 
 for iteration in 1 2; do
 
@@ -58,7 +79,7 @@ for iteration in 1 2; do
     child=NA12878
     parents=($mother $father)
     family=($child $mother $father)
-    allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
+    allVCFPath=$ftp_vcf/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
     ;;
   "2")
     sample=YRI
@@ -67,7 +88,7 @@ for iteration in 1 2; do
     child=NA19240
     parents=($mother $father)
     family=($child $mother $father)
-    allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.vcf.gz
+    allVCFPath=$ftp_vcf/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.vcf.gz
     ;;
   *)
     ;;
@@ -99,7 +120,6 @@ for iteration in 1 2; do
 
 #@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
 
-shapeit=/storageNGS/ngs1/software/shapeit.v2.r837.GLIBCv2.12.Linux.static/bin/shapeit
 vcftools=~/software/vcftools_0.1.15/bin/vcftools
 
 vcf=$1
@@ -244,5 +264,7 @@ $shapeit -convert --input-haps $outdir/trio.chr1 --output-vcf ${vcf/.vcf.gz/_pha
 
     java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
   done
+
+  # Add commands for WhatsHap?
 
 done
