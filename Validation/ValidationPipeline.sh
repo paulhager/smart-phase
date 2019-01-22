@@ -1,27 +1,28 @@
-Pipeline Commands NA12878
+#!/bin/bash
 
-DOWNLOAD LOCATIONS:
+# DOWNLOAD LOCATIONS
 ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/NA12878_HG001/latest/GRCh37/
 ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/
 
-STARTING CONFIGURATION
+# STARTING CONFIGURATION
 
-.//$sample
-    ..//$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
-
-.//shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
-.//whatshap-comparison-experiments
-.//reference
-	..//1000GP_Phase3.sample
-	..//genetic_map_chr1_combined_b37.txt
-	..//1000GP_Phase3_chr1.legend.gz
-	..//1000GP_Phase3_chr1.hap.gz
+./$sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
+./shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
+./whatshap-comparison-experiments
+./reference/
+	1000GP_Phase3.sample
+	genetic_map_chr1_combined_b37.txt
+	1000GP_Phase3_chr1.legend.gz
+	1000GP_Phase3_chr1.hap.gz
+  	human_g1k_v37.fasta
 	..//AGV6UTR_covered_merged.bed # Don't know where Tim got this from
   ..//allGeneRegionsCanonical.HG19.GRCh37.sort.merge.bed # Can't be downloaded automatically
 
 chromosomes=(1 19)
 
 # Preliminary work that only needs to be done once
+rm -r ./sim
+mkdir sim
 rm -r ./reference
 mkdir ./reference
 rm -r ./whatshap-comparison-experiments
@@ -29,8 +30,12 @@ mkdir ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments/scripts
 curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
 curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -o ./reference/human_g1k_v37.fasta.gz
+gunzip -c ./reference/human_g1k_v37.fasta.gz > ./reference/human_g1k_v37.fasta
+samtools faidx reference/human_g1k_v37.fasta
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/artificial-child.py -o ./whatshap-comparison-experiments/scripts/artificial-child.py
+chmod 777 ./whatshap-comparison-experiments/scripts/artificial-child.py
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/genomesimulator.py -o ./whatshap-comparison-experiments/scripts/genomesimulator.py
+chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
 for chrNum in ${chromosomes[@]}; do
   curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.hap.gz -o ./reference/1000GP_Phase3_chr$chrNum.hap.gz
   curl http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/1000GP_Phase3_chr$chrNum.legend.gz -o ./reference/1000GP_Phase3_chr$chrNum.legend.gz
@@ -48,20 +53,20 @@ for iteration in 1 2; do
   case "$iteration" in
   "1")
     sample=CEU
-    family=(NA12878 NA12891 NA12892)
-    parents=(NA12891 NA12892)
     father=NA12891
     mother=NA12892
     child=NA12878
+    parents=($mother $father)
+    family=($child $mother $father)
     allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
     ;;
   "2")
     sample=YRI
-    family=(NA19238 NA19239 NA19240)
-    parents=(NA19238 NA19239)
     father=NA19239
     mother=NA19238
     child=NA19240
+    parents=($mother $father)
+    family=($child $mother $father)
     allVCFPath=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.vcf.gz
     ;;
   *)
@@ -71,6 +76,9 @@ for iteration in 1 2; do
   # Clean and create structure
   rm -r ./$sample
   mkdir ./$sample
+
+  mkdir ./sim/$sample
+  mkdir -p sim/tmp
 
   # Download required files
   allVCFFile=${allVCFPath/*\//}
@@ -90,6 +98,33 @@ for iteration in 1 2; do
   done
 
 #@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
+
+shapeit=/storageNGS/ngs1/software/shapeit.v2.r837.GLIBCv2.12.Linux.static/bin/shapeit
+vcftools=~/software/vcftools_0.1.15/bin/vcftools
+
+vcf=$1
+outdir=$( dirname $vcf )
+genmap=./resources/genetic_map_chr1_combined_b37.txt
+refhaps=./resources/1000GP_Phase3_chr1.hap.gz
+legend=./resources/1000GP_Phase3_chr1.legend.gz
+samples=./resources/1000GP_Phase3.sample
+
+
+$vcftools --gzvcf $vcf --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > ${vcf/.vcf.gz/_biallelic.vcf.gz}
+
+vcf=${vcf/.vcf.gz/_biallelic.vcf.gz}
+tabix -p vcf $vcf
+
+# 1st step
+$shapeit -check -V $vcf -M $genmap --input-ref $refhaps $legend $samples --output-log $outdir/trio.chr1 > $outdir/firstStep.out
+
+# 2nd step
+exclude=$outdir/trio.chr1.snp.strand.exclude
+$shapeit -V $vcf --exclude-snp $exclude -M $genmap --input-ref $refhaps $legend $samples -O $outdir/trio.chr1 > $outdir/secondStep.out
+
+# 3rd step
+$shapeit -convert --input-haps $outdir/trio.chr1 --output-vcf ${vcf/.vcf.gz/_phased.vcf.gz} > $outdir/thirdStep.out
+
   # Run SHAPEIT Check, then SHAPEIT, then convert to vcf
   shapeit -check -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample --output-log shapeit/NA12878.chr1 || true) > shapeit/NA12878.trio.chr1.check.log 2>&1
   shapeit -V $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr1.vcf --exclude-snp shapeit/NA12878.trio.chr1.snp.strand.exclude' -M reference/genetic_map_chr1_combined_b37.txt --input-ref reference/1000GP_Phase3_chr1.hap.gz reference/1000GP_Phase3_chr1.legend.gz reference/1000GP_Phase3.sample -O $sample/NA12878.trio.chr1 > shapeit/NA12878.trio.chr1.run.log 2>&
@@ -100,20 +135,16 @@ for iteration in 1 2; do
   shapeit -convert --input-haps shapeit/NA12878.trio.chr19 --output-vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr19_biallelic_phased.vcf > shapeit/NA12878.trio.chr19.phased.vcf.log 2>&1
 #@@@@@@ TIM NEEDS TO DO THIS PART BECAUSE SHAPEIT DOES NOT WORK ON OSX
 
-  # Split VCF into three
   for chrNum in ${chromosomes[@]}; do
+    # Split VCF into three
     for familyMember in ${family[@]}; do
       bcftools view -s $familyMember $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr${chrNum}_biallelic_phased.vcf.gz > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$familyMember.chr${chrNum}_biallelic_phased.vcf
     done
-  done
 
-  # Create artifical child
-  for chrNum in ${chromosomes[@]}; do
+    # Create artifical child
     whatshap-comparison-experiments/scripts/artificial-child.py reference/genetic_map_chr${chrNum}.txt $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf $child sim/$sample/$sample.$father.chr${chrNum}.true.recomb sim/$sample/$sample.$mother.chr${chrNum}.true.recomb > sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf
-  done
 
-  # Merge artifical trio
-  for chrNum in ${chromosomes[@]}; do
+    # Merge artifical trio
     for parent in ${parents[@]}; do
       bgzip -c $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
       tabix $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
@@ -123,12 +154,8 @@ for iteration in 1 2; do
     tabix sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz
 
     vcf-merge $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf.gz $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf.gz sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz > sim/$sample/sim.$sample.trio.chr${chrNum}.phased.vcf
-  done
 
-  # Create child true haplotype fastas
-  mkdir -p sim/tmp
-
-  for chrNum in ${chromosomes[@]}; do
+    # Create child true haplotype fastas
     whatshap-comparison-experiments/scripts/genomesimulator.py -c $chrNum sim/$sample/sim.$sample.$child.chr$chrNum.phased.vcf reference/human_g1k_v37.fasta sim/tmp/
   done
 
@@ -212,12 +239,10 @@ for iteration in 1 2; do
   done
 
   # Run SmartPhase
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr1.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr1.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
+  for chrNum in ${chromosomes[@]}; do
+    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
 
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr1.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr1.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr1.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
-
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr19.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
-
-  java -jar ~/smart-phase/smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr19.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p NA12878 -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.NA12878.chr19.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
+    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
+  done
 
 done
