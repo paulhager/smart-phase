@@ -8,7 +8,7 @@ SmartPhase is offered as an executable jar in addition to its source code. The f
 
 ## Requirements
 
-- Java 8
+- Java 10
 
 ## Use Case
 
