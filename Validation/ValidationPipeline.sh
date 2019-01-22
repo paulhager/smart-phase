@@ -45,6 +45,7 @@ chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
 curl https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz -o ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
 tar -zxvf ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
 shapeit=./bin/shapeit
+rm -rf ./example
 
 curl $url_res/1000GP_Phase3.sample -o ./reference/1000GP_Phase3.sample
 for chrNum in ${chromosomes[@]}; do
