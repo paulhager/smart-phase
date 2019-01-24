@@ -22,7 +22,7 @@ java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p 
 -x -v -t
 ```
 
-The results will be written into the Validatio/UseCase folder.
+The results will be written into the UseCase folder.
 
 ## Running SmartPhase
 
