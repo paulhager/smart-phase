@@ -3,6 +3,7 @@ Phase/src/bin/
 Validation/CEU
 Validation/YRI
 Validation/LICENCE
+Validation/out.log
 Validation/shapeit*
 Validation/partToExecute.sh
 Validation/bin

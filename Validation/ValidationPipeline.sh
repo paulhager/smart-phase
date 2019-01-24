@@ -19,7 +19,6 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # STARTING CONFIGURATION (non-existing files will be downloaded)
-# ./bin/shapeit
 # ./CEU/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
 # ./YRI/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
 # ./reference/
@@ -30,6 +29,7 @@
 #  	human_g1k_v37.fasta
 # ./sim
 # ./whatshap-comparison-experiments
+shapeit=./bin/shapeit
 capture_bed=../BED/AGV6UTR_covered_merged.bed
 gene_bed=../BED/allGeneRegionsCanonical.HG19.GRCh37.bed
 
@@ -38,6 +38,12 @@ ftp_vcf=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_
 url_res=http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/
 
 chromosomes=(1 19)
+
+# check whether shapeit is available
+if [[ ! -f $shapeit ]]; then
+	echo "SHAPEIT binary is missing! Please download it as explained in the README."
+	exit
+fi
 
 # Preliminary work that only needs to be done once
 #rm -r ./sim
@@ -58,12 +64,6 @@ curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea
 chmod 777 ./whatshap-comparison-experiments/scripts/artificial-child.py
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/genomesimulator.py -o ./whatshap-comparison-experiments/scripts/genomesimulator.py
 chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
-
-# download SHAPEIT binary and resources required to run it
-curl https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz -o ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
-tar -zxvf ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
-shapeit=./bin/shapeit
-rm -rf ./example
 
 gp_samples=./reference/1000GP_Phase3.sample
 curl $url_res/1000GP_Phase3.sample -o $gp_samples
@@ -140,7 +140,7 @@ for iteration in 1 2; do
     tabix -p vcf $sample/$allVCFFileChr
 
     allVCFFileChrBiallelic=${allVCFFileChr/.vcf.gz/_biallelic.vcf.gz}
-    vcftools --gzvcf $allVCFFileChr --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > $allVCFFileChrBiallelic
+    vcftools --gzvcf $sample/$allVCFFileChr --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > $sample/$allVCFFileChrBiallelic
     tabix -p vcf $sample/$allVCFFileChrBiallelic
 
     genmap=./reference/genetic_map_chr${chrNum}_combined_b37.txt
