@@ -19,7 +19,6 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # STARTING CONFIGURATION (non-existing files will be downloaded)
-# ./bin/shapeit
 # ./CEU/CEU.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
 # ./YRI/YRI.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free_v2.genotypes.vcf.gz
 # ./reference/
@@ -30,6 +29,8 @@
 #  	human_g1k_v37.fasta
 # ./sim
 # ./whatshap-comparison-experiments
+shapeit=./bin/shapeit
+art_illumina=./bin/art_illumina
 capture_bed=../BED/AGV6UTR_covered_merged.bed
 gene_bed=../BED/allGeneRegionsCanonical.HG19.GRCh37.bed
 
@@ -38,6 +39,18 @@ ftp_vcf=ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_
 url_res=http://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3/
 
 chromosomes=(1 19)
+
+# check whether SHAPEIT is available
+if [[ ! -f $shapeit ]]; then
+	echo "SHAPEIT binary is missing! Please download it as explained in the README."
+	exit
+fi
+
+# check whether ART is available
+if [[ ! -f $art_illumina ]]; then
+        echo "ART binary is missing! Please download it as explained in the README."
+        exit
+fi
 
 # Preliminary work that only needs to be done once
 #rm -r ./sim
@@ -51,6 +64,7 @@ mkdir ./whatshap-comparison-experiments/scripts
 # download and prepare reference genome
 curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -o ./reference/human_g1k_v37.fasta.gz
 gunzip ./reference/human_g1k_v37.fasta.gz
+bwa index reference/human_g1k_v37.fasta
 samtools faidx reference/human_g1k_v37.fasta
 
 # download required scripts provided by WhatsHap
@@ -58,12 +72,6 @@ curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea
 chmod 777 ./whatshap-comparison-experiments/scripts/artificial-child.py
 curl https://bitbucket.org/whatshap/phasing-comparison-experiments/raw/08cd648ea5a4d19d8efa61f9be658c914a964f3b/scripts/genomesimulator.py -o ./whatshap-comparison-experiments/scripts/genomesimulator.py
 chmod 777 ./whatshap-comparison-experiments/scripts/genomesimulator.py
-
-# download SHAPEIT binary and resources required to run it
-curl https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz -o ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
-tar -zxvf ./shapeit.v2.r837.GLIBCv2.12.Linux.static.tgz
-shapeit=./bin/shapeit
-rm -rf ./example
 
 gp_samples=./reference/1000GP_Phase3.sample
 curl $url_res/1000GP_Phase3.sample -o $gp_samples
@@ -139,125 +147,128 @@ for iteration in 1 2; do
     allVCFFileChr=$allVCFFileUnzipChr.gz
     tabix -p vcf $sample/$allVCFFileChr
 
+    # Extract biallelic sites
     allVCFFileChrBiallelic=${allVCFFileChr/.vcf.gz/_biallelic.vcf.gz}
-    vcftools --gzvcf $allVCFFileChr --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > $allVCFFileChrBiallelic
+    vcftools --gzvcf $sample/$allVCFFileChr --min-alleles 2 --max-alleles 2 --recode --stdout | bgzip -c > $sample/$allVCFFileChrBiallelic
     tabix -p vcf $sample/$allVCFFileChrBiallelic
 
+    # Run SHAPEIT check
     genmap=./reference/genetic_map_chr${chrNum}_combined_b37.txt
     refhaps=./reference/1000GP_Phase3_chr${chrNum}.hap.gz
     legend=./reference/1000GP_Phase3_chr${chrNum}.legend.gz
     $shapeit -check -V $sample/$allVCFFileChrBiallelic -M $genmap --input-ref $refhaps $legend $gp_samples --output-log ./$sample/shapeit_check_chr${chrNum} > ./$sample/shapeit_check_chr${chrNum}.log 2>&1
 
+    # Run SHAPEIT phasing
     exclude=./$sample/shapeit_check_chr${chrNum}.snp.strand.exclude
     $shapeit -V $sample/$allVCFFileChrBiallelic --exclude-snp $exclude -M $genmap --input-ref $refhaps $legend $gp_samples -O ./$sample/shapeit_phase_chr${chrNum} > $sample/shapeit_phase_chr${chrNum}.log 2>&1
 
-    allVCFPhased=${allVCFFileChrBiallelic/.vcf.gz/_phased.vcf.gz}
+    # Convert SHAPEIT result to VCF
+    allVCFPhased=${allVCFFileChrBiallelic/.vcf.gz/_phased.vcf}
     $shapeit -convert --input-haps ./$sample/shapeit_phase_chr${chrNum} --output-vcf ./$sample/$allVCFPhased > ./$sample/shapeit_convert_chr${chrNum}.log 2>&1
+
+    allVCFPhasedZip=${allVCFPhased/.vcf/.vcf.gz}
+    bgzip $sample/$allVCFPhased
+    tabix -p vcf $sample/$allVCFPhasedZip
+
+    # Split VCF into three
+    for familyMember in ${family[@]}; do
+      singleVCFPhased=${allVCFPhased/genotypes./genotypes.${familyMember}.}
+      bcftools view -s $familyMember $sample/$allVCFPhasedZip > $sample/$singleVCFPhased
+    done
+   
+    # Create artifical child
+    motherVCF=${allVCFPhased/genotypes./genotypes.${mother}.}                                          
+    fatherVCF=${allVCFPhased/genotypes./genotypes.${father}.}
+    childVCF=sim.$sample.$child.chr${chrNum}.phased.vcf
+    whatshap-comparison-experiments/scripts/artificial-child.py reference/genetic_map_chr${chrNum}.txt $sample/$motherVCF $sample/$fatherVCF $child sim/$sample/$sample.$father.chr${chrNum}.true.recomb sim/$sample/$sample.$mother.chr${chrNum}.true.recomb > sim/$sample/$childVCF
+  
+    # Create child true haplotype fastas
+    whatshap-comparison-experiments/scripts/genomesimulator.py -c $chrNum sim/$sample/$childVCF reference/human_g1k_v37.fasta sim/tmp/
+ 
+    motherVCFZip=${motherVCF/.vcf/.vcf.gz}
+    bgzip $sample/$motherVCF
+    tabix -p vcf $sample/$motherVCFZip
+  
+    fatherVCFZip=${fatherVCF/.vcf/.vcf.gz}
+    bgzip $sample/$fatherVCF
+    tabix -p vcf $sample/$fatherVCFZip
+  
+    childVCFZip=${childVCF/.vcf/.vcf.gz}
+    bgzip sim/$sample/$childVCF
+    tabix -p vcf sim/$sample/$childVCFZip
+  
+    # Merge artifical trio
+    trioVCF=sim.$sample.trio.chr${chrNum}.phased.vcf
+    vcf-merge $sample/$motherVCFZip $sample/$fatherVCFZip sim/$sample/$childVCFZip > sim/$sample/$trioVCF
+  
   done
 
   rm $sample/$allVCFFileUnzip
 
-  for chrNum in ${chromosomes[@]}; do
-    # Split VCF into three
-    for familyMember in ${family[@]}; do
-      bcftools view -s $familyMember $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.chr${chrNum}_biallelic_phased.vcf.gz > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$familyMember.chr${chrNum}_biallelic_phased.vcf
-    done
-
-    # Create artifical child
-    whatshap-comparison-experiments/scripts/artificial-child.py reference/genetic_map_chr${chrNum}.txt $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf $child sim/$sample/$sample.$father.chr${chrNum}.true.recomb sim/$sample/$sample.$mother.chr${chrNum}.true.recomb > sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf
-
-    # Merge artifical trio
-    for parent in ${parents[@]}; do
-      bgzip -c $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf > $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
-      tabix $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$parent.chr${chrNum}_biallelic_phased.vcf.gz
-    done
-
-    bgzip -c sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf > sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz
-    tabix sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz
-
-    vcf-merge $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$mother.chr${chrNum}_biallelic_phased.vcf.gz $sample/$sample.wgs.consensus.20131118.snps_indels.high_coverage_pcr_free.genotypes.$father.chr${chrNum}_biallelic_phased.vcf.gz sim/$sample/sim.$sample.$child.chr${chrNum}.phased.vcf.gz > sim/$sample/sim.$sample.trio.chr${chrNum}.phased.vcf
-
-    # Create child true haplotype fastas
-    whatshap-comparison-experiments/scripts/genomesimulator.py -c $chrNum sim/$sample/sim.$sample.$child.chr$chrNum.phased.vcf reference/human_g1k_v37.fasta sim/tmp/
-  done
-
   # Create ped
   echo $sample	$child	$father	$mother	0	2 > reference/$sample.ped
 
-  # Cut desired regions out of fasta
-  for f in sim/tmp/*fasta; do
+  # Cut desired regions out of fasta and move to sample folders
+  for f in sim/tmp/${child}*.fasta; do
+    samtools faidx $f
     outFile=${f/.fasta/_kit.fasta}
     outFile=${outFile/tmp/$sample}
-    bedtools getfasta -fi $f -bed reference/AGV6UTR_covered_merged.bed -fo $outFile
+    bedtools getfasta -fi $f -bed $capture_bed -fo $outFile
     rm $f
     rm $f.fai
   done
 
   # Simulate reads of both haplotypes using ART
-  art=art_bin_MountRainier/art_illumina
   length=150
   cv=100
   frag=400
   sdev=100
 
   for f in sim/$sample/*_kit.fasta; do
-    sample=$( basename $f | cut -d "_" -f1 )
-    echo start for $sample
-    $art -ss HSXt -i $f -p -l $length -f $cv -m $frag -s $sdev -o sim/$sample/simulated.art.hsxt.${length}l.${cv}fc.${frag}m.${sdev}s.${sample}. > ${sample}.out 2> ${sample}.err &
+    sample_chr=$( basename $f | cut -d "_" -f1 )
+    $art_illumina -ss HSXt -i $f -p -l $length -f $cv -m $frag -s $sdev -o sim/$sample/simulated.art.hsxt.${length}l.${cv}fc.${frag}m.${sdev}s.${sample_chr}. > sim/$sample/art_simulation_${sample_chr}.log 2>&1
   done
 
   # Rename headers to prevent duplicate names
   for f in sim/$sample/*.1.[12].fq; do
     out=${f/.fq/.fixed_header.fq.gz}
-    echo $f to $out
-    cat $f | awk '{if(NR%4==1) $0="@hapl1_"$0; print;}' | gzip > $out &
+    cat $f | awk '{if(NR%4==1) $0="@hapl1_"$0; print;}' | gzip > $out 
   done
 
   for f in sim/$sample/*.2.[12].fq; do
     out=${f/.fq/.fixed_header.fq.gz}
-    echo $f to $out
-    cat $f | awk '{if(NR%4==1) $0="@hapl2_"$0; print;}' | gzip > $out &
+    cat $f | awk '{if(NR%4==1) $0="@hapl2_"$0; print;}' | gzip > $out 
   done
 
   # Merge Haplotypes
   for f in sim/$sample/*1.1.fixed_header.fq.gz; do
     f2=${f/1.1.fixed_header.fq.gz/2.1.fixed_header.fq.gz}
-    gzcat $f $f2 | gzip > ${f/1.1.fixed_header.fq.gz/1.fq.gz} &
+    zcat $f $f2 | gzip > ${f/1.1.fixed_header.fq.gz/1.fq.gz} 
   done
 
   for f in sim/$sample/*1.2.fixed_header.fq.gz; do
     f2=${f/1.2.fixed_header.fq.gz/2.2.fixed_header.fq.gz}
-    gzcat $f $f2 | gzip > ${f/1.2.fixed_header.fq.gz/2.fq.gz} &
+    zcat $f $f2 | gzip > ${f/1.2.fixed_header.fq.gz/2.fq.gz} 
   done
 
-  # Map using BWA
-  bwa index reference/human_g1k_v37.fasta
-
+  # Run BWA
   threads=4
   for f in sim/$sample/*1.fq.gz; do
-    echo $f
     id=$( basename $f | cut -d "." -f8 )
-    echo $id
     f2=${f/1.fq.gz/2.fq.gz}
-    echo $f2
     out=${f/.1.fq.gz/.bam}
-    echo $out
     bwa mem -t $threads -R "@RG\tID:${id}\tSM:${id}" reference/human_g1k_v37.fasta $f $f2 | samtools sort -@ $threads -o $out -
-    samtools index $out &
+    samtools index $out 
   done 
 
-
   # Extract variants in kit and intersection of kit with all gene regions canonical from USCS table browser.
-  for f in sim/$sample/sim.$sample.trio.high_coverage_pcr_free.phased.vcf; do
-    out=${f/.vcf/.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37}
-
-    vcftools --vcf $f --bed reference/intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.cut.bed --out $out --recode --keep-INFO-all
-
-    out=$out.recode.vcf
-
-    bgzip -c $out > $out.gz
-
-    tabix $out.gz
+  for f in sim/$sample/sim.${sample}.trio.*.vcf; do
+    out=${f/.vcf/.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37}
+    vcftools --vcf $f --bed $intersect_cut_bed --out $out --recode --keep-INFO-all
+    out=${out}.recode.vcf
+    bgzip $out
+    out=${out}.gz
+    tabix -p vcf $out
   done
 
   # Run SmartPhase
