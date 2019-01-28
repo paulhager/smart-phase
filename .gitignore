@@ -8,5 +8,6 @@ Validation/shapeit*
 Validation/partToExecute.sh
 Validation/bin
 Validation/reference
+Validation/results
 Validation/sim
 Validation/whatshap-comparison-experiments
