@@ -283,19 +283,20 @@ for iteration in 1 2; do
     out=${out_raw/.vcf.gz/.SmartPhase_read-only.tsv}
     log=${out/.tsv/.log}
     java -jar ../smartPhase.jar -g $merged_gene_bed -a $vcf -p $child -r $bam -m 60 -o results/$out -v -x > results/$log 2>&1
-    perl ./extract_SmartPhase_stats.pl results $sample $chrNum "read-only" 10 0.1
+    perl ./extract_SmartPhase_stats.pl results $sample $child $chrNum "read-only" 10 0.1
     
     # read and trio phasing
     out=${out_raw/.vcf.gz/.SmartPhase_read-and-trio.tsv}
     log=${out/.tsv/.log}
     java -jar ../smartPhase.jar -g $merged_gene_bed -a $vcf -p $child -r $bam -m 60 -d reference/${sample}.ped -o results/$out -v -x -t > results/$log 2>&1
-    perl ./extract_SmartPhase_stats.pl results $sample $chrNum "read-and-trio" 10 0.1
+    perl ./extract_SmartPhase_stats.pl results $sample $child $chrNum "read-and-trio" 10 0.1
   done
 
   # Run WhatsHap
   for chrNum in ${chromosomes[@]}; do
     vcf=./sim/$sample/sim.${sample}.trio.chr${chrNum}.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz
     bam=./sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.${child}.chr${chrNum}.bam
+    eval_pairs=./results/sim.${sample}.trio.chr${chrNum}.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.evaluation_pairs.tsv
     out_raw=$( basename $vcf )
 
     # unphase simluated VCF
@@ -307,11 +308,13 @@ for iteration in 1 2; do
     out=${out_raw/.vcf.gz/.WhatsHap_read-only.vcf.gz}
     log=${out/.vcf.gz/.log}
     whatshap phase --mapq 60 --indels --sample $child -o results/$out $uv $bam > results/$log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
 
     # read and trio phasing
     out=${out_raw/.vcf.gz/.WhatsHap_read-and-trio.vcf.gz}
     log=${out/.vcf.gz/.log}
     whatshap phase --mapq 60 --indels --ped reference/${sample}.ped -o results/$out $uv $bam > results/$log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
   done
 
 done

@@ -21,14 +21,15 @@
 
 use strict;
 
-# call: perl extract_SmartPhase_stats.pl dir <NA...> <chr..> <trio|NOtrio> 10 0.1
+# call: perl extract_SmartPhase_stats.pl dir <CEU|YRI> <NA..> <chr..> <trio|NOtrio> 10 0.1
 
 my $dir = $ARGV[0];
 my $fam = $ARGV[1];
-my $chr = $ARGV[2];
-my $trio = $ARGV[3];
-my $maxVarPerGene = $ARGV[4];
-my $minConf = $ARGV[5];
+my $sample = $ARGV[2];
+my $chr = $ARGV[3];
+my $trio = $ARGV[4];
+my $maxVarPerGene = $ARGV[5];
+my $minConf = $ARGV[6];
 
 my $genes = 0;
 my $variants = 0;
@@ -54,8 +55,9 @@ my $invalconftsv = "$dir/sim.$fam.trio.chr$chr.phased.intersect.AGV6UTR.allGeneR
 my $out = $inresults;
 $out =~ s/.tsv/.evaluation.txt/ig;
 
-my $spout_good_intervals = $inresults;
-$spout_good_intervals =~ s/.tsv/_good_intervals.tsv/ig;
+my $eval_pairs = "$dir/sim.$fam.trio.chr$chr.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.evaluation_pairs.tsv";
+#my $spout_good_intervals = $inresults;
+#$spout_good_intervals =~ s/.tsv/_good_intervals.tsv/ig;
 
 # open output file
 open(my $outfh, '>', $out) or die "Could not open outfile ($out)!";
@@ -87,8 +89,8 @@ print $outfh "In total, there are $total_variants variants in all regions.\n";
 print $outfh "There are $genes genes, a total of $variants variants resulting in $potpairs potential compound heterozygous variant pairs.\n";
 print $outfh "The phase connnection ratio is: $pcr\n";
 
-# write SP results of good intervals
-open(my $fhout2, '>', $spout_good_intervals) or die "Could not open file ($spout_good_intervals)!";
+# write SP results of evaluation intervals
+open(my $fhout2, '>', $eval_pairs) or die "Could not open file ($eval_pairs)!";
 
 # read results.txt
 open($fh, '<', $inresults) or die "Could not open file ($inresults)!";
@@ -97,7 +99,8 @@ while(my $line = <$fh>) {
 	chomp $line;
 	@fields = split('\t', $line);
 	if(scalar(@fields) == 5 && ! $excludeIntervals{$fields[0]}) {
-		print $fhout2 "$line\n";
+		print $fhout2 "$sample\t$fields[1]\t$fields[2]\n";
+		#print $fhout2 "$line\n";
 		$flag = $fields[3];
 		$pairToFlag{"$fields[0]+$fields[1]+$fields[2]"} = $flag;
 		# determine innocuous pairs
