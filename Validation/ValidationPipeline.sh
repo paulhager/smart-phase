@@ -309,12 +309,14 @@ for iteration in 1 2; do
     log=${out/.vcf.gz/.log}
     whatshap phase --mapq 60 --indels --sample $child -o results/$out $uv $bam > results/$log 2>&1
     perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/.tsv} $child > results/${out/.vcf.gz/.err_calls.txt}
 
     # read and trio phasing
     out=${out_raw/.vcf.gz/.WhatsHap_read-and-trio.vcf.gz}
     log=${out/.vcf.gz/.log}
     whatshap phase --mapq 60 --indels --ped reference/${sample}.ped -o results/$out $uv $bam > results/$log 2>&1
     perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/.tsv} $child > results/${out/.vcf.gz/.err_calls.txt}
   done
 
 done
