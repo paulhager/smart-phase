@@ -17,7 +17,7 @@
 1. Download reference data and scripts provided in the [phasing-comparison-experiments BitBucket repository of WhatsHap](https://bitbucket.org/whatshap/phasing-comparison-experiments/ "WhatsHap phasing comparison experiments").
 2. Preparing a BED file representing WES captured protein-coding exons as the intersection of the regions captured by the Agilent SureSelect Human All Exon V6 kit and the regions of canonical protein-coding genes downloaded from the USCS table browser.
 Both files are located in the [BED directory](https://github.com/paulhager/smart-phase/tree/master/BED).
-3. Downloading the VCFs for the CEU and YRI trio provided by the [1000 Genomes FTP server](ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/).
+3. Downloading the VCFs for the CEU and YRI trio provided by the [1000 Genomes FTP server](https://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/working/20140625_high_coverage_trios_broad/).
 4. Run SHAPEIT for phasing both trios on chr1 and chr19.
 5. Use WhatsHap script `artificial-child.py` to create an artificial child VCF based on the phased parents which is then used to generate an artifial trio VCF.
 6. Use WhatsHap script `genomesimulator.py` to create haplotype FASTA files for the artifical child.
