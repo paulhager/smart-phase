@@ -21,10 +21,10 @@ Both files are located in the [BED directory](https://github.com/paulhager/smart
 4. Run SHAPEIT for phasing both trios on chr1 and chr19.
 5. Use WhatsHap script `artificial-child.py` to create an artificial child VCF based on the phased parents which is then used to generate an artifial trio VCF.
 6. Use WhatsHap script `genomesimulator.py` to create haplotype FASTA files for the artifical child.
-7. Cut FASTA files to only include regions captured by WES.
-8. Use the ART illumina read simulation tool to create paired-end sequencing data with 150 bp read length and an average depth of coverage of 100.
+7. Cut FASTA files to only include regions captured by the Agilent SureSelect Human All Exon V6 kit.
+8. Use the ART Illumina read simulation tool to create paired-end sequencing data with 150 bp read length and an average depth of coverage of 100.
 9. Merge the FASTQ files generated for each haplotype.
 10. Run BWA-MEM to align simulated reads to the reference genome hg19.
-11. Extract variants of artifical trio which are located in the BED file prepared in step 2.
+11. Extract variants of the artifical trio which are located in the regions of the BED file prepared in step 2.
 12. Run SmartPhase for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and extract the metrics described in the manuscript.
 13. Run WhatsHap for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and determine phasing errors.
