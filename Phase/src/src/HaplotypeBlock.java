@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
@@ -296,7 +297,8 @@ public class HaplotypeBlock {
 
 	private VariantContext findNearestTPhased(VariantContext vc) throws Exception {
 		VariantContext nearestTrioVC = null;
-		// Find nearest trioPhase within block
+		int closestMBDif = Integer.MAX_VALUE;
+		// Find nearest trioPhase within block or linked block
 		if (vc.getGenotype(PATIENT_ID).isPhased() && vc.getGenotype(PATIENT_ID).hasAnyAttribute("TrioConfidence")) {
 			nearestTrioVC = vc;
 		} else {
@@ -306,10 +308,16 @@ public class HaplotypeBlock {
 			}
 			int distance = Integer.MAX_VALUE;
 			for (VariantContext curVC : this.getAllVariants()) {
-				if (curVC.getGenotype(PATIENT_ID).isPhased() && curVC.getGenotype(PATIENT_ID).hasAnyAttribute("TrioConfidence") && curVC.getAttributeAsInt("mergedBlocks", -1) == mergeB
-						&& distance > Math.abs(vc.getStart() - curVC.getStart())) {
-					distance = Math.abs(vc.getStart() - curVC.getStart());
-					nearestTrioVC = curVC;
+				Genotype curVCGenotype = curVC.getGenotype(PATIENT_ID);
+				int currentMergeBDif = Math.abs(curVC.getAttributeAsInt("mergedBlocks", -1) - mergeB);
+				int curDistance = Math.abs(vc.getStart() - curVC.getStart());
+				if (curVCGenotype.isPhased() && curVCGenotype.hasAnyAttribute("TrioConfidence") && currentMergeBDif <= closestMBDif
+						&& distance > curDistance) {
+					if(calcConfidenceLinkedBlockPairs(curVC, vc, true) != null) {
+						closestMBDif = currentMergeBDif;
+						nearestTrioVC = curVC;
+						distance = curDistance;
+					}
 				}
 			}
 		}
@@ -325,13 +333,13 @@ public class HaplotypeBlock {
 
 		// Variants must be in same mergeBlock, or else must be linker
 		if (vc1.getAttributeAsInt("mergedBlocks", -1) != vc2.getAttributeAsInt("mergedBlocks", -1)) {
-			return calcConfidenceLinkedBlockPairs(vc1, vc2);
+			return calcConfidenceLinkedBlockPairs(vc1, vc2, false);
 		}
 
-		return calcConfCleanRunLinkedPreceding(vc1, vc2, 0);
+		return calcConfCleanRunLinkedPreceding(vc1, vc2, 0, false);
 	}
 
-	private ConfidencePair<Double, Integer> calcConfidenceLinkedBlockPairs(VariantContext var1, VariantContext var2)
+	private ConfidencePair<Double, Integer> calcConfidenceLinkedBlockPairs(VariantContext var1, VariantContext var2, boolean testing)
 			throws Exception {
 		int var1MB = var1.getAttributeAsInt("mergedBlocks", 0);
 		int var2MB = var2.getAttributeAsInt("mergedBlocks", 0);
@@ -413,7 +421,7 @@ public class HaplotypeBlock {
 					}
 					// Normal (easy) case
 					if (unbrokenRun) {
-						return calcConfCleanRunLinkedPreceding(var1, var2, 0);
+						return calcConfCleanRunLinkedPreceding(var1, var2, 0, testing);
 					} else {
 						// There are at least two branches of LP and the vars
 						// are on different branches (difficult case)
@@ -421,6 +429,13 @@ public class HaplotypeBlock {
 						// Determine connecting path
 						ArrayList<Integer> connectingPath = calculateConnectingPath(var1MB, var2MB,
 								tempBlockConnectionsList, new ArrayList<Integer>());
+						
+						if(connectingPath == null) {
+							if(testing) {
+								return null;
+							}
+							throw new Exception("Couldn't find connecting path between vars!");
+						}
 
 						ConfidencePair<Double, Integer> resultConfidence = new ConfidencePair<Double, Integer>(1.0, 0);
 						VariantContext varInMBVar1 = null;
@@ -459,7 +474,13 @@ public class HaplotypeBlock {
 										}
 
 										ConfidencePair<Double, Integer> calculatedConf = calcConfCleanRunLinkedPreceding(
-												linkedVar, posConVar, linkedBlock);
+												linkedVar, posConVar, linkedBlock, testing);
+										if(calculatedConf == null) {
+											if(testing) {
+												return null;
+											}
+											throw new Exception ("CalculatedConf is null!");
+										}
 										resultConfidence.setConfidence(
 												resultConfidence.confidence() * calculatedConf.confidence());
 										resultConfidence.setSteps(resultConfidence.steps() + calculatedConf.steps());
@@ -471,15 +492,30 @@ public class HaplotypeBlock {
 						if (varInMBVar1 == null || varInMBVar2 == null
 								|| varInMBVar1.getAttributeAsInt("mergedBlocks", -1) != var1MB
 								|| varInMBVar2.getAttributeAsInt("mergedBlocks", -1) != var2MB) {
+							if(testing) {
+								return null;
+							}
 							throw new Exception("Couldn't correctly find first and final connecting vars");
 						}
 
 						ConfidencePair<Double, Integer> tempConf;
-						tempConf = calcConfCleanRunLinkedPreceding(var1, varInMBVar1, 0);
+						tempConf = calcConfCleanRunLinkedPreceding(var1, varInMBVar1, 0, testing);
+						if(tempConf == null) {
+							if(testing) {
+								return null;
+							}
+							throw new Exception ("tempConf is null!");
+						}
 						resultConfidence.setConfidence(resultConfidence.confidence() * tempConf.confidence());
 						resultConfidence.setSteps(resultConfidence.steps() + tempConf.steps());
 
-						tempConf = calcConfCleanRunLinkedPreceding(var2, varInMBVar2, 0);
+						tempConf = calcConfCleanRunLinkedPreceding(var2, varInMBVar2, 0, testing);
+						if(tempConf == null) {
+							if(testing) {
+								return null;
+							}
+							throw new Exception ("tempConf is null!");
+						}
 						resultConfidence.setConfidence(resultConfidence.confidence() * tempConf.confidence());
 						resultConfidence.setSteps(resultConfidence.steps() + tempConf.steps());
 
@@ -495,7 +531,7 @@ public class HaplotypeBlock {
 							earliestTrioVar = posEarliestTrio;
 						}
 					}
-					confP1 = calcConfCleanRunLinkedPreceding(var1, earliestTrioVar, 0);
+					confP1 = calcConfCleanRunLinkedPreceding(var1, earliestTrioVar, 0, testing);
 				} else if (foundRun2) {
 					VariantContext earliestTrioVar = null;
 					int earliestMergeBlock = Integer.MAX_VALUE;
@@ -506,7 +542,7 @@ public class HaplotypeBlock {
 							earliestTrioVar = posEarliestTrio;
 						}
 					}
-					confP2 = calcConfCleanRunLinkedPreceding(var2, earliestTrioVar, 0);
+					confP2 = calcConfCleanRunLinkedPreceding(var2, earliestTrioVar, 0, testing);
 				}
 				tempTrioVarList = new ArrayList<VariantContext>();
 				tempBlockConnectionsList = new ArrayList<Integer[]>();
@@ -515,6 +551,9 @@ public class HaplotypeBlock {
 			}
 		}
 		if (confP1 == null || confP2 == null) {
+			if(testing) {
+				return null;
+			}
 			throw new Exception("Either both var MBs weren't found, or necessary trio vars missing");
 		}
 
@@ -562,7 +601,7 @@ public class HaplotypeBlock {
 	}
 
 	private ConfidencePair<Double, Integer> calcConfCleanRunLinkedPreceding(VariantContext vc1, VariantContext vc2,
-			int forcedJump) throws Exception {
+			int forcedJump, boolean testing) throws Exception {
 		double product = 1.0;
 
 		if (vc1.getStart() == vc2.getStart() && vc1.getReference().equals(vc2.getReference())
@@ -582,6 +621,9 @@ public class HaplotypeBlock {
 				linkerBlockVC = vc2;
 				otherBlockVC = vc1;
 			} else {
+				if(testing) {
+					return null;
+				}
 				throw new Exception("Expecting linker var exception: \n" + vc1.toStringDecodeGenotypes() + "\n"
 						+ vc2.toStringDecodeGenotypes());
 			}
@@ -589,15 +631,28 @@ public class HaplotypeBlock {
 			VariantContext linkerV = null;
 			;
 			if (forcedJump > 0) {
-				linkerV = calcComplicatedLinkerVar(linkerBlockVC, forcedJump);
+				linkerV = calcComplicatedLinkerVar(linkerBlockVC, forcedJump, testing);
 			} else {
-				linkerV = calcLinkerVar(linkerBlockVC);
+				linkerV = calcLinkerVar(linkerBlockVC, testing);
+			}
+			if(linkerV == null) {
+				if(testing) {
+					return null;
+				}
+				throw new Exception("Null linker var!");
 			}
 
 			ConfidencePair<Double, Integer> confP1 = calcConfCleanRunLinkedPreceding(linkerV, linkerBlockVC,
-					forcedJump);
+					forcedJump, testing);
 			ConfidencePair<Double, Integer> confP2 = calcConfCleanRunLinkedPreceding(otherBlockVC,
-					getSimVC((VariantContext) linkerV.getAttribute("linkedPreceding")), forcedJump);
+					getSimVC((VariantContext) linkerV.getAttribute("linkedPreceding")), forcedJump, testing);
+			
+			if(confP1 == null || confP2 == null) {
+				if(testing) {
+					return null;
+				}
+				throw new Exception("Clean run calcs returned null!");
+			}
 
 			double finalConf = confP1.confidence() * confP2.confidence()
 					* linkerV.getAttributeAsDouble("linkedConfidence", -1.0);
@@ -628,7 +683,7 @@ public class HaplotypeBlock {
 		return new ConfidencePair<Double, Integer>(product, cnt);
 	}
 
-	private VariantContext calcComplicatedLinkerVar(VariantContext linkerBlockVC, int forcedJump) throws Exception {
+	private VariantContext calcComplicatedLinkerVar(VariantContext linkerBlockVC, int forcedJump, boolean testing) throws Exception {
 		for (VariantContext v : this.getAllVariants()) {
 			if (v.hasAttribute("linkedPreceding")
 					&& v.getAttributeAsInt("mergedBlocks", -3) == linkerBlockVC.getAttributeAsInt("mergedBlocks", -4)
@@ -637,10 +692,13 @@ public class HaplotypeBlock {
 				return v;
 			}
 		}
+		if(testing) {
+			return null;
+		}
 		throw new Exception("NO LINKER VAR FOUND. Searching in block of: " + linkerBlockVC.toStringDecodeGenotypes());
 	}
 
-	private VariantContext calcLinkerVar(VariantContext linkerBlockVC) throws Exception {
+	private VariantContext calcLinkerVar(VariantContext linkerBlockVC, boolean testing) throws Exception {
 		for (VariantContext v : this.getAllVariants()) {
 			if (v.hasAttribute("linkedPreceding")
 					&& v.getAttributeAsInt("mergedBlocks", -3) == linkerBlockVC.getAttributeAsInt("mergedBlocks", -4)
@@ -648,6 +706,9 @@ public class HaplotypeBlock {
 							"mergedBlocks", -1) == (linkerBlockVC.getAttributeAsInt("mergedBlocks", -2) - 1)) {
 				return v;
 			}
+		}
+		if(testing) {
+			return null;
 		}
 		throw new Exception("NO LINKER VAR FOUND. Searching in block of: " + linkerBlockVC.toStringDecodeGenotypes());
 	}
