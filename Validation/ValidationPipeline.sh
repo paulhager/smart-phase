@@ -57,6 +57,8 @@ fi
 mkdir sim
 #rm -r ./reference
 mkdir ./reference
+#rm -r ./results
+mkdir ./results
 #rm -r ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments
 mkdir ./whatshap-comparison-experiments/scripts
@@ -198,7 +200,7 @@ for iteration in 1 2; do
     tabix -p vcf sim/$sample/$childVCFZip
   
     # Merge artifical trio
-    trioVCF=sim.$sample.trio.chr${chrNum}.phased.vcf
+    trioVCF=sim.${sample}.trio.chr${chrNum}.phased.vcf
     vcf-merge $sample/$motherVCFZip $sample/$fatherVCFZip sim/$sample/$childVCFZip > sim/$sample/$trioVCF
   
   done
@@ -206,7 +208,7 @@ for iteration in 1 2; do
   rm $sample/$allVCFFileUnzip
 
   # Create ped
-  echo $sample	$child	$father	$mother	0	2 > reference/$sample.ped
+  echo -e "${sample}\t${child}\t${father}\t${mother}\t0\t2" > reference/$sample.ped
 
   # Cut desired regions out of fasta and move to sample folders
   for f in sim/tmp/${child}*.fasta; do
@@ -273,9 +275,48 @@ for iteration in 1 2; do
 
   # Run SmartPhase
   for chrNum in ${chromosomes[@]}; do
-    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.NOtrio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x
+    vcf=./sim/$sample/sim.${sample}.trio.chr${chrNum}.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz
+    bam=./sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.${child}.chr${chrNum}.bam
+    out_raw=$( basename $vcf )
 
-    java -jar ../smartPhase.jar -g reference/allGeneRegionsCanonical.HG19.GRCh37.bed -a sim/$sample/sim.$sample.trio.chr$chrNum.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz -p $child -r sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.$child.chr$chrNum.bam -m 60 -d reference/$sample.ped -o results/smartPhase.sim.$child.chr$chrNum.trio.AGV6UTR.allGeneRegionsCanonical.results.tsv -v -x -t
+    # read-only phasing
+    out=${out_raw/.vcf.gz/.SmartPhase_read-only.tsv}
+    log=${out/.tsv/.log}
+    java -jar ../smartPhase.jar -g $merged_gene_bed -a $vcf -p $child -r $bam -m 60 -o results/$out -v -x > results/$log 2>&1
+    perl ./extract_SmartPhase_stats.pl results $sample $child $chrNum "read-only" 10 0.1
+    
+    # read and trio phasing
+    out=${out_raw/.vcf.gz/.SmartPhase_read-and-trio.tsv}
+    log=${out/.tsv/.log}
+    java -jar ../smartPhase.jar -g $merged_gene_bed -a $vcf -p $child -r $bam -m 60 -d reference/${sample}.ped -o results/$out -v -x -t > results/$log 2>&1
+    perl ./extract_SmartPhase_stats.pl results $sample $child $chrNum "read-and-trio" 10 0.1
+  done
+
+  # Run WhatsHap
+  for chrNum in ${chromosomes[@]}; do
+    vcf=./sim/$sample/sim.${sample}.trio.chr${chrNum}.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.vcf.gz
+    bam=./sim/$sample/simulated.art.hsxt.150l.100fc.400m.100s.${child}.chr${chrNum}.bam
+    eval_pairs=./results/sim.${sample}.trio.chr${chrNum}.phased.intersect.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.recode.evaluation_pairs.tsv
+    out_raw=$( basename $vcf )
+
+    # unphase simluated VCF
+    uv=${vcf/.vcf.gz/_unphased.vcf.gz}
+    whatshap unphase $vcf | bgzip > $uv
+    tabix -p vcf $uv
+
+    # read-only phasing
+    out=${out_raw/.vcf.gz/.WhatsHap_read-only.vcf.gz}
+    log=${out/.vcf.gz/.log}
+    whatshap phase --mapq 60 --indels --sample $child -o results/$out $uv $bam > results/$log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/.tsv} $child > results/${out/.vcf.gz/.err_calls.txt}
+
+    # read and trio phasing
+    out=${out_raw/.vcf.gz/.WhatsHap_read-and-trio.vcf.gz}
+    log=${out/.vcf.gz/.log}
+    whatshap phase --mapq 60 --indels --ped reference/${sample}.ped -o results/$out $uv $bam > results/$log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/.tsv} $child > results/${out/.vcf.gz/.err_calls.txt}
   done
 
 done
