@@ -15,50 +15,42 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+package smartPhase;
 
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
-import htsjdk.samtools.util.CloseableIterator;
-import htsjdk.variant.variantcontext.VariantContext;
 
 @SuppressWarnings("hiding")
-public class MutableCloseableIterator<VariantContext> implements CloseableIterator<VariantContext> {
+public class VariantIterator<SimpleVariant> implements Iterator<SimpleVariant>{
+	private final Queue<SimpleVariant> buffer = new LinkedList<>();
 	
-	private Queue<VariantContext> buffer = new LinkedList<>();
-	
-	public MutableCloseableIterator(CloseableIterator<VariantContext> closI) {
-		buffer = new LinkedList<>(closI.toList());
-	}
-	
-	public MutableCloseableIterator() {
+	public VariantIterator(Iterator<SimpleVariant> iter) {
 		super();
 	}
 	
-	
-	@Override
-	public VariantContext next() {
-		if (!this.hasNext()) {
-			throw new NoSuchElementException("Nothing left");
-		}
-		return this.buffer.poll();
-	}
-
-	@Override
-	public void close() {}
-
 	@Override
 	public boolean hasNext() {
 		if (this.buffer.isEmpty()){
-			this.close();
 			return false;
 		}
 		return true;
 	}
-	
-	public void add(VariantContext vc) {
-		buffer.add(vc);
+
+	@Override
+	public SimpleVariant next() {
+		if (!this.hasNext()) {
+		      throw new NoSuchElementException("Nothing left");
+		    }
+		    return this.buffer.poll();
 	}
+	
+	public int currentSize(){
+		return this.buffer.size();
+	}
+	
+	
 
 }

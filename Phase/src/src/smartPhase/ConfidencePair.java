@@ -15,48 +15,31 @@
 //
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+package smartPhase;
 
-// Simple variant with chromosome string and start position
-public class SimpleVariant {
+public class ConfidencePair<D, I> {
 	
-	private String chrom;
-	private int start;
-	private int end;
+	private D confidence;
+	private I steps;
 	
-	public SimpleVariant(String chrom, int start, int end){
-		this.chrom = chrom;
-		this.start = start;
-		this.end = end;
+	public ConfidencePair(D confidence, I steps){
+		this.confidence = confidence;
+		this.steps = steps;
 	}
 	
-	
-	
-	public void setChrom(String chrom){
-		this.chrom = chrom;
+	public D confidence(){
+		return this.confidence;
 	}
 	
-	public String getChrom(){
-		return this.chrom;
+	public I steps(){
+		return this.steps;
 	}
 	
-	
-	
-	public void setStart(int start){
-		this.start = start;
+	public void setConfidence(D newConf){
+		this.confidence = newConf;
 	}
 	
-	public int getStart(){
-		return this.start;
+	public void setSteps(I newSteps){
+		this.steps = newSteps;
 	}
-	
-	
-	
-	public void setEnd(int end){
-		this.end = end;
-	}
-	
-	public int getEnd(){
-		return this.end;
-	}
-
 }
