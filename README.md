@@ -12,10 +12,11 @@ SmartPhase is offered as an executable jar in addition to its source code. The f
 
 ## Compiling
 
-To compile from source execute the following commands from the top directory
+To compile from source clone the repository and execute the following commands from the top directory
 
-````
-cd ./Phase/src/src/
+```
+git clone https://github.com/paulhager/smart-phase.git
+cd ./smart-phase/Phase/src/src/
 javac -cp ".:./commons-cli-1.4.jar:picard.jar" smartPhase/*.java
 jar -cvfm SmartPhase.jar ../../META-INF/MANIFEST.MF smartPhase/*.class
 ```
