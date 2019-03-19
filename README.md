@@ -12,18 +12,20 @@ SmartPhase is offered as an executable jar in addition to its source code. The f
 
 ## Compiling
 
-To compile from source clone the repository and execute the following commands from the top directory
+To compile from source execute the following commands
 
 ```
 git clone https://github.com/paulhager/smart-phase.git
 cd ./smart-phase/Phase/src/src/
 javac -cp ".:./commons-cli-1.4.jar:picard.jar" smartPhase/*.java
-jar -cvfm SmartPhase.jar ../../META-INF/MANIFEST.MF smartPhase/*.class
+jar -cvfm smartPhase.jar ../../META-INF/MANIFEST.MF smartPhase/*.class
 ```
+
+The `smartPhase.jar` file will be located in `./smart-phase/Phase/src/src/smartPhase.jar`.
 
 ## Use Case
 
-Clone the repository to your file system and execute the following command from the smart-phase folder:
+Clone the repository to your file system and execute the following command from the `smart-phase` folder:
 
 ```
 java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p NA12878 \
