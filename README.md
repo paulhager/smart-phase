@@ -105,17 +105,9 @@ If multiple, comma seperated patient IDs are present, the file must be tab seper
 The second and third columns are the two variants whose phase should be determined.
 Each variant entry must follow the following pattern `contig-start-reference-alternate`. For example: `chr1-143555-G-A`.
 
-A full entry in such a file could look like this:
+A full entry in such a file could look like this: `PID12345,4-722294-G-A,4-722315-T-C`
 
-```
-PID12345,4-722294-G-A,4-722315-T-C
-```
-
-or like this:
-
-```
-PID12345,PID9734,PID2356        4-722294-G-A    4-722315-T-C
-```
+or like this: `PID12345,PID9734,PID2356        4-722294-G-A    4-722315-T-C`
 
 ```
 -g or --gene-regions
