@@ -93,12 +93,12 @@ The path to the file containing prefiltered variants that should be phased.
 If running in *explorative* mode, this can be left blank and will be set equal to the all variants (-a) file provided.
 SmartPhase then assumes that all variants that fall within the genomic regions (-g) of interest should be phased.
 
-If running in *analytic* or *paired* mode, this file is **required**.
+If running in *analytic* or *paired* mode, this file is **REQUIRED**.
 In *analytic* mode variants provided here can either be in the form of a VCF file or merely a list of variants with an appropriate first-line header specifying which column contains the contig, the start position, the reference call and the alternate call.
 Only tab or comma seperated files of this type are accepted.
 A common data source for this type of file would for example be the output of a [GEMINI database query](https://gemini.readthedocs.io/en/latest/).
 
-In *paired* mode a multi-column file of pre-selected potential compound heterozygousv variant pairs can be provided here.
+In *paired* mode a multi-column file of pre-selected potential compound heterozygous variant pairs can be provided here.
 The first column may contain multiple comma seperated patient IDs.
 Only those lines with the patient ID specified in the patient flag (-p) will be phased.
 If multiple, comma seperated patient IDs are present, the file must be tab seperated.
@@ -107,7 +107,7 @@ Each variant entry must follow the following pattern `contig-start-reference-alt
 
 A full entry in such a file could look like this: `PID12345,4-722294-G-A,4-722315-T-C`
 
-or like this: `PID12345,PID9734,PID2356        4-722294-G-A    4-722315-T-C`
+or like this: `PID12345,PID9734,PID2356	4-722294-G-A	4-722315-T-C`
 
 ```
 -g or --gene-regions
