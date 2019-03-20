@@ -43,11 +43,11 @@ The results will be written into the `UseCase` folder.
 
 ## Running SmartPhase
 
-SmartPhase can either be run in explorative or analytic mode.
-In explorative mode, SmartPhase parses provided genomic regions of interest (typically protein coding regions) provided in a BED file and, per region, phases either all variants or merely those specified in a filtered variants file.
-In analytic or paired mode, no regions of interest must be given, just specific variant pairs that should be phased to one another have to be provided.
+SmartPhase can either be run in *explorative* or *analytic/paired* mode.
+In *explorative* mode, SmartPhase parses provided genomic regions of interest (typically protein coding regions) provided in a BED file and, per region, phases either all variants or merely those specified in a filtered variants file.
+In *analytic* or *paired* mode, no regions of interest must be given, just specific variant pairs that should be phased to one another have to be provided.
 SmartPhase will then create the appropriate regions.
-The annalytic mode lends itself more to an analysis of a cohort where pre-filtering has already been done and only specific candidate variant pairs should be analyzed whereas explorative mode is more all-purpose and can be run at any point in the analysis pipeline.
+The *analytic* mode lends itself more to an analysis of a cohort where pre-filtering has already been done and only specific candidate variant pairs should be analyzed whereas the *explorative* mode is more all-purpose and can be run at any point in the analysis pipeline.
 
 ### Basic usage:
 
@@ -90,12 +90,32 @@ The output file will be in tab seperated format.
 ```
 
 The path to the file containing prefiltered variants that should be phased.
-If running in analytic mode, this file is required.
-If running in explorative mode, this can be left blank and will be set equal to the all-variants file provided.
-SmartPhase then assumes that all variants that fall within the genomic regions of interest should be phased.
-The variants provided here can either be in the form of a VCF file or merely a list of variants with an appropriate first-line header specifying which column contains the contig, the start position, the reference call and the alternate call.
+If running in *explorative* mode, this can be left blank and will be set equal to the all variants (-a) file provided.
+SmartPhase then assumes that all variants that fall within the genomic regions (-g) of interest should be phased.
+
+If running in *analytic* or *paired* mode, this file is **required**.
+In *analytic* mode variants provided here can either be in the form of a VCF file or merely a list of variants with an appropriate first-line header specifying which column contains the contig, the start position, the reference call and the alternate call.
 Only tab or comma seperated files of this type are accepted.
 A common data source for this type of file would for example be the output of a [GEMINI database query](https://gemini.readthedocs.io/en/latest/).
+
+In *paired* mode a multi-column file of pre-selected potential compound heterozygousv variant pairs can be provided here.
+The first column may contain multiple comma seperated patient IDs.
+Only those lines with the patient ID specified in the patient flag (-p) will be phased.
+If multiple, comma seperated patient IDs are present, the file must be tab seperated.
+The second and third columns are the two variants whose phase should be determined.
+Each variant entry must follow the following pattern `contig-start-reference-alternate`. For example: `chr1-143555-G-A`.
+
+A full entry in such a file could look like this:
+
+```
+PID12345,4-722294-G-A,4-722315-T-C
+```
+
+or like this:
+
+```
+PID12345,PID9734,PID2356        4-722294-G-A    4-722315-T-C
+```
 
 ```
 -g or --gene-regions
@@ -104,7 +124,7 @@ A common data source for this type of file would for example be the output of a 
 The path to the BED file containing the genomic regions of interest that should be phased.
 Only variants within these regions will be phased.
 Must be in standard BED format.
-If this argument is not set, the analytic mode is assumed and genomic regions will be built around the variants pairs specified in the filtered variants (-f) file.
+If this argument is not set, the *analytic/paired* mode is assumed and genomic regions will be built around the variants pairs specified in the filtered variants (-f) file.
 
 ```
 -r or --reads
@@ -170,28 +190,6 @@ This flag requires that the true phase of the patient in all variants is in the 
 ```
 
 Print a summary of the above explanations.
-
-## Paired Mode Input Specification
-
-When running in analytic mode, the filtered variants file (-f) should consist of pre-selected variant pairs for which the phase should be determined.
-Only tab and comma seperated files are accepted here.
-The first column may contain multiple comma seperated patient IDs.
-Only those lines with the patient ID specified in the patient flag (-p) will be phased.
-If multiple, comma seperated patient IDs are present, the file must be tab seperated.
-The second and third columns are the two variants whose phase should be determined.
-Each variant entry must follow the following pattern `contig-start-reference-alternate`. For example: `chr1-143555-G-A`.
-
-A full entry in such a file could look like this:
-
-```
-PID12345,4-722294-G-A,4-722315-T-C
-```
-
-or like this:
-
-```
-PID12345,PID9734,PID2356	4-722294-G-A	4-722315-T-C
-```
 
 # Output
 
