@@ -182,7 +182,6 @@ public class HaplotypeBlock {
 	 * @return Strand
 	 */
 	public Strand getStrandSimVC(VariantContext vc) {
-
 		for (VariantContext posVC : strand1) {
 			if (posVC.getStart() == vc.getStart() && posVC.getReference().equals(vc.getReference())
 					&& posVC.getAlternateAllele(0).equals(vc.getAlternateAllele(0))) {
@@ -220,6 +219,54 @@ public class HaplotypeBlock {
 			}
 		}
 		return null;
+	}
+	
+	/**
+	 * Creates a VariantStrandPair object by searching for the necessary fields for two variants at once
+	 * 
+	 * @param outerVariant
+	 * @param innerVariant
+	 * @return VariantStrandPair
+	 * @throws Exception 
+	 */
+	public VariantStrandPair getStrandPair(VariantContext outerVariant, VariantContext innerVariant) {
+		VariantContext outVar = null;
+		VariantContext inVar = null;
+		Strand outStrand = null;
+		Strand inStrand = null;
+		
+		for (VariantContext posVC : strand1) {
+			if(outVar != null && inVar != null && outStrand != null && inStrand != null) {
+				break;
+			}
+			if (posVC.getStart() == outerVariant.getStart() && posVC.getReference().equals(outerVariant.getReference())
+					&& posVC.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0))) {
+				outVar = posVC;
+				outStrand = Strand.STRAND1;
+			}
+			if (posVC.getStart() == innerVariant.getStart() && posVC.getReference().equals(innerVariant.getReference())
+					&& posVC.getAlternateAllele(0).equals(innerVariant.getAlternateAllele(0))) {
+				inVar = posVC;
+				inStrand = Strand.STRAND1;
+			}
+		}
+		for (VariantContext posVC : strand2) {
+			if(outVar != null && inVar != null && outStrand != null && inStrand != null) {
+				break;
+			}
+			if (posVC.getStart() == outerVariant.getStart() && posVC.getReference().equals(outerVariant.getReference())
+					&& posVC.getAlternateAllele(0).equals(outerVariant.getAlternateAllele(0))) {
+				outVar = posVC;
+				outStrand = Strand.STRAND2;
+			}
+			if (posVC.getStart() == innerVariant.getStart() && posVC.getReference().equals(innerVariant.getReference())
+					&& posVC.getAlternateAllele(0).equals(innerVariant.getAlternateAllele(0))) {
+				inVar = posVC;
+				inStrand = Strand.STRAND2;
+			}
+		}
+		VariantStrandPair varStrPair = new VariantStrandPair(outVar, inVar, outStrand, inStrand); 
+		return varStrPair;
 	}
 
 	/**
@@ -263,6 +310,9 @@ public class HaplotypeBlock {
 	 *             mergedBlocks attribute not found
 	 */
 	public double calculateConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
+		if(vc1.getStart() == 1887111 && vc2.getStart() == 1886756) {
+			debug();
+		}
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
 
@@ -278,7 +328,7 @@ public class HaplotypeBlock {
 				* (double) nearestTrioVC1.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 
 		ConfidencePair<Double, Integer> cpTrio2 = multiplyConfidence(vc2, nearestTrioVC2);
-		cpTrio1.setConfidence(cpTrio2.confidence()
+		cpTrio2.setConfidence(cpTrio2.confidence()
 				* (double) nearestTrioVC2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence"));
 
 		// Try to calculate confidence using only read conf. scores if both

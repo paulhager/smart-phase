@@ -705,12 +705,11 @@ public class SmartPhase {
 								throw new Exception("HaplotypeBlock is null!");
 							}
 
-							// TODO: Sift through arraylists twice... very
-							// inefficient
-							VariantContext trueOuterVariant = hb.getSimVC(outerVariant);
-							VariantContext trueInnerVariant = hb.getSimVC(innerVariant);
-							HaplotypeBlock.Strand outerStrand = hb.getStrandSimVC(outerVariant);
-							HaplotypeBlock.Strand innerStrand = hb.getStrandSimVC(innerVariant);
+							VariantStrandPair varStrandPair = hb.getStrandPair(outerVariant, innerVariant);
+							VariantContext trueOuterVariant = varStrandPair.getOuterVariant();
+							VariantContext trueInnerVariant = varStrandPair.getInnerVariant();
+							HaplotypeBlock.Strand outerStrand = varStrandPair.getOuterVariantStrand();
+							HaplotypeBlock.Strand innerStrand = varStrandPair.getInnerVariantStrand();
 
 							if (outerStrand != null) {
 								foundOuter = true;
@@ -780,6 +779,7 @@ public class SmartPhase {
 									isTrans = false;
 									isCis = false;
 									totalConfidence = 0;
+									break;
 								}
 							}
 						}
