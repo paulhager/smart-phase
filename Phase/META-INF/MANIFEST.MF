@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: smartPhase.SmartPhase
+Class-Path: commons-cli-1.4.jar picard.jar
+
