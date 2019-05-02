@@ -1769,9 +1769,14 @@ public class SmartPhase {
 	private static ArrayList<VariantContext> trioPhase(Iterator<VariantContext> inVariantsIterator, PedFile familyPed)
 			throws IOException {
 
-		// Read in .ped file and retrieve maternal/paternal IDs
+		// Read in .ped file and retrieve maternal/paternal IDs and see if parent is afflicted implying innoc should be turned off
 		String motherID = familyPed.get(PATIENT_ID).getMaternalId();
 		String fatherID = familyPed.get(PATIENT_ID).getPaternalId();
+		boolean afflictedParent = true;
+		if(familyPed.get(motherID) != null && familyPed.get(fatherID) != null) {
+			afflictedParent = ((familyPed.get(motherID).getPhenotype().intValue() != 1) || (familyPed.get(fatherID).getPhenotype().intValue() != 1));			
+		}
+		
 
 		if (motherID.equals("0") || fatherID.equals("0")) {
 			System.err.println(
@@ -1831,7 +1836,7 @@ public class SmartPhase {
 			}
 			
 			boolean innoc = false;
-			if (motherGT.isHomVar() || fatherGT.isHomVar()
+			if (!afflictedParent && motherGT.isHomVar() || fatherGT.isHomVar()
 					|| (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) && patientGT.isHet()) {
 				innoc = true;
 			}
