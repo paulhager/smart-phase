@@ -578,7 +578,7 @@ public class SmartPhase {
 			if (regionFiltVariantList == null) {
 				continue;
 			}
-			regionFiltVariantList.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
+			regionFiltVariantList.removeIf(v -> v.getGenotype(PATIENT_ID).isHom());
 
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
@@ -2082,8 +2082,8 @@ public class SmartPhase {
 					}
 
 					// CIS
-					if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
-							|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+					if (((prevTrioSplit[0].indexOf("*") != -1 || prevTrioSplit[0].indexOf(".") != -1) && (curTrioSplit[0].indexOf("*") != -1 || curTrioSplit[0].indexOf(".") != -1))
+							|| ((prevTrioSplit[1].indexOf("*") != -1 || prevTrioSplit[1].indexOf(".") != -1) && (curTrioSplit[1].indexOf("*") != -1 || curTrioSplit[1].indexOf(".") != -1))) {
 						posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
 								prevStrandMerge, mergeBlockCntr);
 						posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
