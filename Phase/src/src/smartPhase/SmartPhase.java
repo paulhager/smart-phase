@@ -1365,8 +1365,8 @@ public class SmartPhase {
 						* (double) blockTrioVar2.getGenotype(PATIENT_ID).getAnyAttribute("TrioConfidence");
 
 				// CIS
-				if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
-						|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+				if (((prevTrioSplit[0].indexOf("*") != -1 || prevTrioSplit[0].indexOf(".") != -1) && (curTrioSplit[0].indexOf("*") != -1 || curTrioSplit[0].indexOf(".") != -1))
+						|| ((prevTrioSplit[1].indexOf("*") != -1 || prevTrioSplit[1].indexOf(".") != -1) && (curTrioSplit[1].indexOf("*") != -1 || curTrioSplit[1].indexOf(".") != -1))) {
 					// Contradiction
 					if (transCounter >= cisCounter
 							&& hapBlock.getStrandSimVC(firstVar) == hapBlock.getStrandSimVC(blockTrioVar1)) {
