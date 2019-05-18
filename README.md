@@ -139,9 +139,9 @@ For example, if the arguments passed to -r are file1,file2 and the arguments pas
 -t or --trio
 ```
 
-A boolean switch indicating that trio phasing should be done.
-If this is present, pedigree information must also be provided (-d).
+A boolean flag indicating that trio phasing should be done.
 All variant call information for mother, father and child (patient) must be given in the all variants file (-a).
+NOTE: If this is present, pedigree information must also be provided (-d).
 
 ```
 -d or --ped
@@ -164,7 +164,7 @@ In this case, using the information written by GATK HC during restructuring allo
 -x or --reject-phase
 ```
 
-A boolean switch indicating that any phase information already annotated in the VCF, for example from other phasing programs, should be ignored.
+A boolean flag indicating that any phase information already annotated in the VCF, for example from other phasing programs, should be ignored.
 By default this information is taken as correct and those variants that have already been phased are not phased again.
 To phase all variants in a file, regardless of other phasing information present, add this argument.
 
@@ -172,10 +172,27 @@ To phase all variants in a file, regardless of other phasing information present
 -v or --validation
 ```
 
-A boolean switch indicating that validation files should be generated and output alongside the regular output file.
+A boolean flag indicating that validation files should be generated and output alongside the regular output file.
 Extra generated files list all haplotype block lengths, the confidence scores all variants correctly and incorrectly called, connectivity information and mean switch error calculations.
 Files are created in the same location as the regular output file.
 This flag requires that the true phase of the patient in all variants is in the all variants file (-a).
+
+```
+-vcf
+```
+
+A boolean flag indicating that the results of smart phase should also be written to a vcf file. 
+The file will be based on the all variants file (-a) and will contain two new info fields, SPGT and SPID. SPGT specifies the genotype or phase of the variant with respect to the other variants in the block. 
+The block is identified by its start position and specified with the SPID field. 
+NOTE: If this flag is specified, a cutoff (-c <DOUBLE>) must be provided.
+
+```
+-c or --cutoff
+```
+
+The cutoff value to be used when deciding which phased blocks should be written in the final vcf file.
+If a block contains at least one variant pair with a confidence below the cutoff, the entire block is discarded.
+NOTE: If this argument is used, the -vcf flag must also be specified.
 
 ```
 -h or --help

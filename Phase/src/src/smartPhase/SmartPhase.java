@@ -22,7 +22,9 @@ import java.io.BufferedReader;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -40,6 +42,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -66,10 +69,17 @@ import htsjdk.samtools.util.IntervalList;
 import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.GenotypeBuilder;
+import htsjdk.variant.variantcontext.GenotypesContext;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
+import htsjdk.variant.variantcontext.writer.VariantContextWriter;
+import htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder;
 import htsjdk.variant.vcf.VCFFileReader;
+import htsjdk.variant.vcf.VCFFormatHeaderLine;
+import htsjdk.variant.vcf.VCFHeader;
+import htsjdk.variant.vcf.VCFHeaderLineType;
 import picard.pedigree.PedFile;
+import smartPhase.HaplotypeBlock.Strand;
 
 public class SmartPhase {
 
@@ -86,6 +96,7 @@ public class SmartPhase {
 	static File[] inputREADFILES = null;
 	static String prevContig = "";
 	static double[] minMAPQ;
+	static double vcfCutoff = 0;
 
 	static ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
 	static ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
@@ -102,6 +113,7 @@ public class SmartPhase {
 	static boolean PHYSICAL_PHASING = false;
 	static boolean REJECT_PHASE = false;
 	static boolean VALIDATION = false;
+	static boolean WRITE_VCF = false;
 
 	static boolean countReads = false;
 
@@ -165,6 +177,12 @@ public class SmartPhase {
 		Option validationOption = Option.builder("v").longOpt("validation").desc("Indicates extra output files to assist in validation by calculating and providing data for switch error and phase connectivity should be created. Files will be created in the same location as the primary output file").build();
 		optionsList.add(validationOption);
 		
+		Option vcfWriteOption = Option.builder("vcf").desc("Indicates a vcf file should be generated to include the results of phasing. Requires a confidence cutoff specified through the --confidence option.").build();
+		optionsList.add(vcfWriteOption);
+		
+		Option vcfWriteCutoff = Option.builder("c").longOpt("cutoff").hasArg().desc("The confidence cutoff to be used when determining if a variant should be indicated as phased in the vcf. Only used in conjunction with the --vcf option.").build();
+		optionsList.add(vcfWriteCutoff);
+		
 		Option helpOption = Option.builder("h").longOpt("help").desc("Print this message").build();
 		optionsList.add(helpOption);
 				
@@ -204,6 +222,12 @@ public class SmartPhase {
 		PedFile familyPed = null;
 		final File inputVCF_FILTER;
 		Set<String> unimportantContigs = new HashSet<>();
+		ArrayList<String> noPrintAttributes = new ArrayList<String>();
+		noPrintAttributes.add("Preceding");
+		noPrintAttributes.add("Innocuous");
+		noPrintAttributes.add("mergedBlocks");
+		noPrintAttributes.add("linkedPreceding");
+		noPrintAttributes.add("linkedConfidence");
 		
 		if(cmd.hasOption(filteredVariantsOption.getOpt())) {
 			inputVCF_FILTER = new File(cmd.getOptionValue(filteredVariantsOption.getOpt()));
@@ -227,6 +251,15 @@ public class SmartPhase {
 
 		if (cmd.hasOption(validationOption.getOpt())) {
 			VALIDATION = true;
+		}
+		
+		if(cmd.hasOption(vcfWriteOption.getOpt())) {
+			if(!cmd.hasOption(vcfWriteCutoff.getOpt())) {
+				throw new Exception("If a vcf file with the phasing results should be generated (-vcf), a confidence cutoff must be provided (-c)");				
+			} else {
+				WRITE_VCF = true;
+				vcfCutoff = Float.parseFloat(cmd.getOptionValue(vcfWriteCutoff.getOpt()));				
+			}
 		}
 
 		if (cmd.hasOption(geneRegionsOption.getOpt())) {
@@ -429,6 +462,22 @@ public class SmartPhase {
 		FilteredVariantReader filteredVCFReader = new FilteredVariantReader(inputVCF_FILTER, PAIRED, PATIENT_ID, iList);
 		@SuppressWarnings("resource")
 		VCFFileReader allVCFReader = new VCFFileReader(inputVCF_ALL);
+		VCFFileReader writeVCFReader = new VCFFileReader(inputVCF_ALL);
+		CloseableIterator<VariantContext> writeVCFReadIterator = writeVCFReader.iterator();
+		VariantContext curVarAllVars = writeVCFReadIterator.next();
+		writeVCFReader.close();
+		
+		VariantContextWriter vcfWriter = null;
+		String vcfOutPath = "";
+		if(WRITE_VCF) {
+			vcfOutPath = inputVCF_ALL.getAbsolutePath().replace(".vcf.gz", "_sp.vcf");
+			vcfWriter = new VariantContextWriterBuilder().setReferenceDictionary(VCFFileReader.getSequenceDictionary(inputVCF_ALL)).setOutputFile(vcfOutPath).build();
+			VCFHeader header = allVCFReader.getFileHeader();
+			header.addMetaDataLine(new VCFFormatHeaderLine("SPGT", 1, VCFHeaderLineType.String, "Phasing haplotype information, generated by SmartPhase, describing how the alternate alleles are phased in relation to one another"));
+			header.addMetaDataLine(new VCFFormatHeaderLine("SPID", 1, VCFHeaderLineType.String, "Phasing ID information, generated by SmartPhase, where each unique ID within a given sample (but not across samples) connects records within a phasing group"));
+			vcfWriter.setHeader(header);
+			vcfWriter.writeHeader(header);
+		}
 		
 		// Check if contigs start with string "chr"
 		VCFFileReader chrCheckAllVCFReader = new VCFFileReader(inputVCF_ALL);
@@ -517,10 +566,8 @@ public class SmartPhase {
 				contigSwitch = true; 
 				prevContig = intervalContig; 
 			}
-
-			for (SAMRecordIterator srIt : samIteratorList) {
-				srIt.close();
-			}
+			
+			samIteratorList.forEach(s -> s.close());
 			samIteratorList.clear();
 			samIteratorList.trimToSize();
 			grabLastRec.clear();
@@ -537,7 +584,7 @@ public class SmartPhase {
 			if (regionFiltVariantList == null) {
 				continue;
 			}
-			regionFiltVariantList.removeIf(v -> !v.getGenotype(PATIENT_ID).isHet());
+			regionFiltVariantList.removeIf(v -> v.getGenotype(PATIENT_ID).isHom());
 
 			// Ensure at least two variants in region. If not, no chance of
 			// compound het. and region is removed
@@ -600,7 +647,6 @@ public class SmartPhase {
 			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
 			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
-			variantsToPhase = null;
 			for (VariantContext v : neverSeenVariants) {
 				System.err.println("Never saw variant: " + v.toString());
 			}
@@ -843,6 +889,32 @@ public class SmartPhase {
 						missingVars.add(outerVariant);
 					}
 				}
+				
+				// Write vcf file with phase
+				if(WRITE_VCF) {
+					while(writeVCFReadIterator.hasNext() && curVarAllVars.getStart() <= intervalEnd) {
+						boolean found = false;
+						for (HaplotypeBlock hb : phasedVars) {
+							VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
+							if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
+								found = true;
+								if(hb.getMinConf() > vcfCutoff) {
+									String phase = "";
+									phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "1|0" : "0|1"; 
+									GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
+									toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
+									toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
+									vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+								}
+							}	
+						}
+						if(!found) {
+							vcfWriter.add(curVarAllVars);
+						}
+						curVarAllVars = writeVCFReadIterator.next();
+					}
+				}
+				variantsToPhase = null;
 
 				// Inform user of missing vars
 				for (VariantContext missingVar : missingVars) {
@@ -868,6 +940,26 @@ public class SmartPhase {
 
 		filteredVCFReader.close();
 		allVCFReader.close();
+		if(WRITE_VCF) {
+			vcfWriter.close();
+			// gzip file
+			byte[] buffer = new byte[1024];
+			try {
+				GZIPOutputStream gzos = new GZIPOutputStream(new FileOutputStream(vcfOutPath.replaceAll("\\.vcf", ".vcf.gz")));
+				FileInputStream in = new FileInputStream(vcfOutPath);
+				
+				int len;
+				while ((len = in.read(buffer)) > 0) {
+					gzos.write(buffer, 0, len);
+				}
+				
+				in.close();
+				gzos.finish();
+				gzos.close();
+			} catch(IOException ex) {
+				ex.printStackTrace();
+			}
+		}
 
 		// Time benchmarking
 		long millis = System.currentTimeMillis() - startTime;
@@ -2016,8 +2108,8 @@ public class SmartPhase {
 					}
 
 					// CIS
-					if ((prevTrioSplit[0].indexOf("*") != -1 && curTrioSplit[0].indexOf("*") != -1)
-							|| (prevTrioSplit[1].indexOf("*") != -1 && curTrioSplit[1].indexOf("*") != -1)) {
+					if (((prevTrioSplit[0].indexOf("*") != -1 || prevTrioSplit[0].indexOf(".") != -1) && (curTrioSplit[0].indexOf("*") != -1 || curTrioSplit[0].indexOf(".") != -1))
+							|| ((prevTrioSplit[1].indexOf("*") != -1 || prevTrioSplit[1].indexOf(".") != -1) && (curTrioSplit[1].indexOf("*") != -1 || curTrioSplit[1].indexOf(".") != -1))) {
 						posMergeBlockCntr1 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(strandCur),
 								prevStrandMerge, mergeBlockCntr);
 						posMergeBlockCntr2 = mergeBlock.addVariantsMerge(curBlock.getStrandVariants(oppStrandCur),
