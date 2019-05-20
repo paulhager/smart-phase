@@ -41,6 +41,7 @@ public class HaplotypeBlock {
 	private int highestMergedBlockCounter = 1;
 	private int possibleHMBC = Integer.MIN_VALUE;
 	private String PATIENT_ID;
+	private double minConf = Integer.MAX_VALUE;
 
 	public HaplotypeBlock(String patID) {
 		strand1 = new ArrayList<VariantContext>();
@@ -310,15 +311,15 @@ public class HaplotypeBlock {
 	 *             mergedBlocks attribute not found
 	 */
 	public double calculateConfidence(VariantContext vc1, VariantContext vc2) throws Exception {
-		if(vc1.getStart() == 1887111 && vc2.getStart() == 1886756) {
-			debug();
-		}
+		double conf = Integer.MAX_VALUE;
 		VariantContext nearestTrioVC1 = findNearestTPhased(vc1);
 		VariantContext nearestTrioVC2 = findNearestTPhased(vc2);
 
 		// No trio info available
 		if (nearestTrioVC1 == null || nearestTrioVC2 == null) {
-			return multiplyConfidence(vc1, vc2).confidence();
+			conf = multiplyConfidence(vc1, vc2).confidence();
+			if(conf < minConf) { minConf = conf; }
+			return conf;
 		}
 
 		
@@ -339,11 +340,15 @@ public class HaplotypeBlock {
 			// Compare amount of steps to determine which conf. score is
 			// returned
 			if (cpRead.steps() < (cpTrio1.steps() + cpTrio2.steps()) / 2) {
-				return cpRead.confidence();
+				conf = cpRead.confidence();
+				if(conf < minConf) { minConf = conf; }
+				return conf;
 			}
 		}
 
-		return cpTrio1.confidence() * cpTrio2.confidence();
+		conf = cpTrio1.confidence() * cpTrio2.confidence();
+		if(conf < minConf) { minConf = conf; }
+		return conf;
 	}
 
 	private VariantContext findNearestTPhased(VariantContext vc) throws Exception {
@@ -893,5 +898,16 @@ public class HaplotypeBlock {
 			System.out.println("Trio");
 		}
 	}
+
+	/**
+	 * Returns minConf value.
+	 * 
+	 * @return minConf
+	 */
+	public double getMinConf() {
+		return minConf;
+	}
+	
+	
 
 }
