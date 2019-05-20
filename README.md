@@ -20,12 +20,21 @@ To compile from source execute the following commands
 
 ```
 git clone https://github.com/paulhager/smart-phase.git
-cd ./smart-phase/Phase/src/src/
-javac -cp ".:./commons-cli-1.4.jar:picard.jar" smartPhase/*.java
-jar -cvfm smartPhase.jar ../../META-INF/MANIFEST.MF smartPhase/*.class
+mkdir ./compile
+javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/bin/src/src/picard.jar:./Phase/bin/src/src/commons-cli-1.4.jar 
+cp ./Phase/bin/src/src/*.jar ./compile/
+cd compile/
+tar xf picard.jar
+tar xf commons-cli-1.4.jar
+rm picard.jar
+rm commons-cli-1.4.jar
+jar -cvfm smartPhase.jar ../Phase/META-INF/MANIFEST.MF .
 ```
 
-The `smartPhase.jar` file will be located in `./smart-phase/Phase/src/src/smartPhase.jar`.
+
+
+The `smartPhase.jar` file will be located in `./compile/smartPhase.jar`.
+This can then be moved one folder up and immediately tested with the use case explained below.
 
 ## Use Case
 

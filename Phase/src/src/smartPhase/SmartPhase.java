@@ -937,7 +937,9 @@ public class SmartPhase {
 
 		filteredVCFReader.close();
 		allVCFReader.close();
-		vcfWriter.close();
+		if(WRITE_VCF) {			
+			vcfWriter.close();
+		}
 
 		// Time benchmarking
 		long millis = System.currentTimeMillis() - startTime;
