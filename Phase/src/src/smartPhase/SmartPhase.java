@@ -1909,7 +1909,7 @@ public class SmartPhase {
 			
 			boolean innoc = false;
 			if (!afflictedParent && ((motherGT.isHomVar() || fatherGT.isHomVar())
-					|| (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT)) && patientGT.isHet())) {
+					|| (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet()))) {
 				innoc = true;
 			}
 
