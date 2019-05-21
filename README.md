@@ -20,12 +20,21 @@ To compile from source execute the following commands
 
 ```
 git clone https://github.com/paulhager/smart-phase.git
-cd ./smart-phase/Phase/src/src/
-javac -cp ".:./commons-cli-1.4.jar:picard.jar" smartPhase/*.java
-jar -cvfm smartPhase.jar ../../META-INF/MANIFEST.MF smartPhase/*.class
+mkdir ./compile
+javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/bin/src/src/picard.jar:./Phase/bin/src/src/commons-cli-1.4.jar 
+cp ./Phase/bin/src/src/*.jar ./compile/
+cd compile/
+tar xf picard.jar
+tar xf commons-cli-1.4.jar
+rm picard.jar
+rm commons-cli-1.4.jar
+jar -cvfm smartPhase.jar ../Phase/META-INF/MANIFEST.MF .
 ```
 
-The `smartPhase.jar` file will be located in `./smart-phase/Phase/src/src/smartPhase.jar`.
+
+
+The `smartPhase.jar` file will be located in `./compile/smartPhase.jar`.
+This can then be moved one folder up and immediately tested with the use case explained below.
 
 ## Use Case
 
@@ -182,8 +191,8 @@ This flag requires that the true phase of the patient in all variants is in the 
 ```
 
 A boolean flag indicating that the results of smart phase should also be written to a vcf file. 
-The file will be based on the all variants file (-a) and will contain two new info fields, SPGT and SPID. SPGT specifies the genotype or phase of the variant with respect to the other variants in the block. 
-The block is identified by its start position and specified with the SPID field. 
+The file will be based on the all variants file (-a) and will contain two new info fields, SPGT and SPID.
+Their significance is explained the output section bellow.
 NOTE: If this flag is specified, a cutoff (-c <DOUBLE>) must be provided.
 
 ```
@@ -220,6 +229,14 @@ And the fifth column is a confidence score indicating how confident SmartPhase i
 If a variant pair was phased using trio information, the confidence is set to 1.
 If read information was used, the confidence takes into account how much conflicting evidence was found and the total number of reads examined.
 A more thorough explanation of the confidence system can be found in our paper. 
+
+
+When the -vcf flag is specified, a bgzipped vcf will also be generated where the haplotype blocks of the individual variants and their phase are recorded.
+This is done with the SPGT and SPID genotype format fields.
+SPGT specifies the genotype or phase of the variant with respect to the other variants in the block. 
+SPID identifies the block the variant belongs to and is made up of the first variant in the blocks start position and its chromosome.
+If a block contains at least one variant pair with a confidence below the cutoff (specified in -c), the entire block is discarded.
+
 
 ## Flags
 
