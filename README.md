@@ -21,8 +21,8 @@ To compile from source execute the following commands
 ```
 git clone https://github.com/paulhager/smart-phase.git
 mkdir ./compile
-javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/bin/src/src/picard.jar:./Phase/bin/src/src/commons-cli-1.4.jar 
-cp ./Phase/bin/src/src/*.jar ./compile/
+javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/libraries/picard.jar:./Phase/libraries/commons-cli-1.4.jar 
+cp ./Phase/libraries/*.jar ./compile/
 cd compile/
 tar xf picard.jar
 tar xf commons-cli-1.4.jar
