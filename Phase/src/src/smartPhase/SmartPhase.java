@@ -1990,7 +1990,7 @@ public class SmartPhase {
 				}
 			}
 
-			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet()) {
+			if (motherGT.sameGenotype(fatherGT) && patientGT.sameGenotype(motherGT) && patientGT.isHet() && !afflictedParent) {
 				// Trip-het can never be phased
 				outVariants.add(
 						new VariantContextBuilder(var).genotypes(new GenotypeBuilder(patientGT).phased(false).make())
