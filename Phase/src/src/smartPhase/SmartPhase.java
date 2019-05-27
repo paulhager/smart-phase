@@ -1309,6 +1309,9 @@ public class SmartPhase {
 					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < secondVar.getStart()) {
 						curTrioVar = trioVarsIterator.next();
 					}
+					if(firstVar.getStart() == secondVar.getStart()) {
+						curTrioVar = trioVarsIterator.next();
+					}
 					if (curTrioVar != null && curTrioVar.getStart() == secondVar.getStart()
 							&& curTrioVar.getGenotype(PATIENT_ID).isPhased()) {
 						blockTrioVar2 = curTrioVar;
