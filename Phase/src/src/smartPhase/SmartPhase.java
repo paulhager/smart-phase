@@ -1309,7 +1309,7 @@ public class SmartPhase {
 					while (trioVarsIterator.hasNext() && curTrioVar.getStart() < secondVar.getStart()) {
 						curTrioVar = trioVarsIterator.next();
 					}
-					if(firstVar.getStart() == secondVar.getStart()) {
+					if(firstVar.getStart() == secondVar.getStart() && trioVarsIterator.hasNext()) {
 						curTrioVar = trioVarsIterator.next();
 					}
 					if (curTrioVar != null && curTrioVar.getStart() == secondVar.getStart()
