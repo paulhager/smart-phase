@@ -897,7 +897,7 @@ public class SmartPhase {
 								found = true;
 								if(hb.getMinConf() > vcfCutoff) {
 									String phase = "";
-									phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "1|0" : "0|1"; 
+									phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
 									GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
 									toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
 									toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
