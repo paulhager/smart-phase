@@ -203,8 +203,15 @@ public class SmartPhase {
 			helpFormatter.printHelp(usageMessage, options, true);
 			System.exit(0);
 		}
-		
-		CommandLine cmd = parser.parse(options, args);
+		CommandLine cmd = null;
+		try {
+			cmd = parser.parse(options, args);			
+		} catch (ParseException pe) {
+			HelpFormatter helpFormatter = new HelpFormatter();
+			String usageMessage = "Welcome to SmartPhase! A dedicated tool designed to assist in the rapid and accurate phasing of variant combinations for clinical analysis. Please refer to the following list of options on how to pass the necessary parameters for use:\n";
+			helpFormatter.printHelp(usageMessage, options, true);
+			System.exit(1);
+		}
 
 		long startTime = System.currentTimeMillis();
 
