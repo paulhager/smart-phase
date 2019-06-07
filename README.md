@@ -40,7 +40,7 @@ java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p 
 -g ./BED/allGeneRegionsCanonical.HG19.GRCh37.bed \
 -r ./UseCase/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.muc16.bam -m 60 \
 -d ./UseCase/CEU.ped -o ./UseCase/smartPhase.sim.NA12878.chr19.muc16.trio.results.tsv \
--x -v -t -vcf -c 0.1
+-x -t -vcf -c 0.1
 ```
 
 Details on the underlying data and the generated results are described in the corresponding [README](https://github.com/paulhager/smart-phase/tree/master/UseCase).
