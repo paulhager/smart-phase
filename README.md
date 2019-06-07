@@ -16,36 +16,30 @@ The following documentation serves as a general overview and explanation of all 
 
 ## Compiling
 
-To compile from source execute the following commands
+If you want to compile SmartPhase from source execute the following commands
 
 ```
 git clone https://github.com/paulhager/smart-phase.git
-mkdir ./compile
-javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/libraries/picard.jar:./Phase/libraries/commons-cli-1.4.jar 
-cp ./Phase/libraries/*.jar ./compile/
-cd compile/
-tar xf picard.jar
-tar xf commons-cli-1.4.jar
-rm picard.jar
-rm commons-cli-1.4.jar
-jar -cvfm smartPhase.jar ../Phase/META-INF/MANIFEST.MF .
+cd ./smart-phase/
+bash compile.sh
 ```
 
-
-
-The `smartPhase.jar` file will be located in `./compile/smartPhase.jar`.
-This can then be moved one folder up and immediately tested with the use case explained below.
+The resulting `smartPhase.jar` file will be located in `./compile/smartPhase.jar`.
+This can then be moved one folder up to replace the included pre-compiled JAR.
+If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
+Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
 
 ## Use Case
 
-Clone the repository to your file system and execute the following command from the `smart-phase` folder:
+After cloning the repository, you can directly run SmartPhase on a Use Case scenario by executing the following command from the `smart-phase` folder.
+If you have compiled the `smartPhase.jar` file yourself as described above you have to adjust the path to it accordingly.
 
 ```
 java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p NA12878 \
 -g ./BED/allGeneRegionsCanonical.HG19.GRCh37.bed \
 -r ./UseCase/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.muc16.bam -m 60 \
 -d ./UseCase/CEU.ped -o ./UseCase/smartPhase.sim.NA12878.chr19.muc16.trio.results.tsv \
--x -v -t
+-x -v -t -vcf -c 0.1
 ```
 
 The results will be written into the `UseCase` folder.
