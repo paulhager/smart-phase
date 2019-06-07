@@ -28,3 +28,5 @@ Both files are located in the [BED directory](https://github.com/paulhager/smart
 11. Extract variants of the artifical trio which are located in the regions of the BED file prepared in step 2.
 12. Run SmartPhase for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and extract the metrics described in the manuscript.
 13. Run WhatsHap for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and determine phasing errors.
+
+You can download the simulated data used in the publication [here](http://ibis.helmholtz-muenchen.de/smartphase/smartphase_simulation_data.tar.gz).
