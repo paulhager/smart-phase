@@ -33,7 +33,7 @@ All phasing predictions resulted from trio-phasing with a confidence score of 1 
 | 26 | Innocuous & Trans & Not found | 7,725 |
 | 28 | Innocuous & Not Phased & Not found | 202 |
 
-Under the assumption that the child suffers from a disease and both parents are healthy, there are only 342 compound heterozygous variant that are potentially disease causing.
+Under the assumption that the child suffers from a disease and both parents are healthy, there are only 342 compound heterozygous variant pairs that are potentially disease causing.
 All other pair are either phased as being located on the same allele or labeled as innocuous variant constellations.
 
 Besides the tabular output file all phasing information is written to `sim.CEU.trio.chr19.phased.muc16_sp.vcf.gz`.
