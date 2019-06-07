@@ -33,6 +33,7 @@ Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
 
 After cloning the repository, you can directly run SmartPhase on a Use Case scenario by executing the following command from the `smart-phase` folder.
 If you have compiled the `smartPhase.jar` file yourself as described above you have to adjust the path to it accordingly.
+The results will be written into the `UseCase` folder.
 
 ```
 java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p NA12878 \
@@ -42,7 +43,7 @@ java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p 
 -x -v -t -vcf -c 0.1
 ```
 
-The results will be written into the `UseCase` folder.
+Details on the underlying data and the generated results are described in the corresponding [README](https://github.com/paulhager/smart-phase/tree/master/UseCase).
 
 ## Running SmartPhase
 
@@ -52,7 +53,7 @@ In *analytic* or *paired* mode, no regions of interest must be given, just speci
 SmartPhase will then create the appropriate regions.
 The *analytic* mode lends itself more to an analysis of a cohort where pre-filtering has already been done and only specific candidate variant pairs should be analyzed whereas the *explorative* mode is more all-purpose and can be run at any point in the analysis pipeline.
 
-### Basic usage:
+### Basic usage
 
 ```
 java -jar SmartPhase.jar \
@@ -63,7 +64,7 @@ java -jar SmartPhase.jar \
 -d /path/to/ped/family.ped -t -o /path/to/desired/output/file/output.tsv
 ```
 
-### Options:
+### Options
 
 ```
 -a or --all-variants
