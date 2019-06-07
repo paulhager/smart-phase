@@ -20,7 +20,7 @@ Finally, there is a summary of the counts of phased and cleared variant pairs an
 The main output file is the `UseCase` folder is `smartPhase.sim.NA12878.chr19.muc16.trio.results.tsv`.
 
 | Bitflag | Interpretation | Count |
-|:-------:|:--------------:|:-----:|
+|--------:|----------------|------:|
 | 1 | Cis | 1,035 |
 | 2 | Trans | 46 |
 | 9 | Innocuous & Cis | 542 |
