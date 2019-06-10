@@ -11,9 +11,9 @@ In total, there are 203 heterozygous variants in the child which results in 20,5
 ### Standard output/error
 
 The standard output/error informs comprehensively about the phasing process. 
-For the use case, there will be quite some messages mentioning that all chromosomes except of chromosome 19 are skipped.
-Then, there are error messages indicating that some variants in the VCF cannot be found in the aligned reads in the BAM file.
-Finally, there is a summary of the counts of phased and cleared variant pairs and the runtime is given.
+For the use case, there will be messages mentioning that all chromosomes except for chromosome 19 are skipped.
+There are also error messages indicating that some variants in the VCF cannot be found in the aligned reads in the BAM file.
+Finally, there is a summary of the counts of phased and cleared variant pairs in addition to the runtime.
 
 ### Output files
 
@@ -34,13 +34,13 @@ All phasing predictions resulted from trio-phasing with a confidence score of 1 
 | 28 | Innocuous & Not Phased & Not found | 202 |
 
 Under the assumption that the child suffers from a disease and both parents are healthy, there are only 342 compound heterozygous variant pairs that are potentially disease causing.
-All other pair are either phased as being located on the same allele or labeled as innocuous variant constellations.
+All other pairs are either phased as being located on the same allele (cis) or labeled as innocuous variant constellations.
 
-Besides the tabular output file all phasing information is written to `sim.CEU.trio.chr19.phased.muc16_sp.vcf.gz`.
+Besides the tabular output file, all phasing information is written to `sim.CEU.trio.chr19.phased.muc16_sp.vcf.gz`.
 Each genotype that is phased as part of a haplotype block has annotated the phased genotype (SPGT) and the corresponding haploblock identifier (SPID).
 For the use case, the genotypes of 202 variants are phased as part of the haplotype block 19\_8962315.
 Note that the first genotype of a haplotype is always given as 0|1 as it is not always possible to indicate which is the paternal and the maternal allele.
-In our case, one variant cannot be phased because the corresponding genotypes in the both parents are also heterozygous.
+In our case, one variant cannot be phased because the corresponding genotypes in both of the parents are also heterozygous.
 All 202 pairs that can be formed with this variant are labeled as innocuous (flag 28 in the table above).
 
 
