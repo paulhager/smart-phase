@@ -32,7 +32,7 @@ Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
 SmartPhase can also be built using maven.
 To do so, execute the following commands
 
-````
+```
 cd ./Phase/src/
 mvn clean install
 ```
