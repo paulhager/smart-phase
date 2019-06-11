@@ -29,6 +29,19 @@ This can then be moved one folder up to replace the included pre-compiled JAR.
 If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
 Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
 
+SmartPhase can also be built using maven.
+To do so, execute the following commands
+
+````
+cd ./Phase/src/
+mvn clean install
+```
+
+The resulting `smartPhase.jar` file will be located in `./Phase/src/target/smartPhase.jar`.
+This can then be moved to the repository root directory to replace the included pre-compiled JAR.
+If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
+Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
+
 ## Use Case
 
 After cloning the repository, you can directly run SmartPhase on a Use Case scenario by executing the following command from the `smart-phase` folder.
