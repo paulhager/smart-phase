@@ -33,6 +33,7 @@ SmartPhase can also be built using maven.
 To do so, execute the following commands
 
 ```
+git clone https://github.com/paulhager/smart-phase.git
 cd ./Phase/src/
 mvn clean install
 ```
