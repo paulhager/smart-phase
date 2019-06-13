@@ -27,7 +27,7 @@ bash compile.sh
 The resulting `smartPhase.jar` file will be located in `./compile/smartPhase.jar`.
 This can then be moved one folder up to replace the included pre-compiled JAR.
 If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
-Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
+Otherwise, you have to adjust for the location of the `smartPhase.jar` accordingly.
 
 SmartPhase can also be built using maven.
 To do so, execute the following commands
@@ -41,7 +41,7 @@ mvn clean install
 The resulting `smartPhase-x.x.x.jar` file will be located in `./Phase/src/target/smartPhase-x.x.x.jar`.
 This can then be moved to the repository root directory to replace the included pre-compiled JAR.
 If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
-Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
+Otherwise, you have to adjust for the location of the `smartPhase-x.x.x.jar` accordingly.
 
 ## Use Case
 
