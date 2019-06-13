@@ -95,8 +95,8 @@ public class SmartPhase {
 	static double[] minMAPQ;
 	static double vcfCutoff = 0;
 
-	static ArrayList<VariantContext> seenInRead = new ArrayList<VariantContext>();
-	static ArrayList<VariantContext> NOT_SeenInRead = new ArrayList<VariantContext>();
+	static HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
+	static HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
 
 	static HashSet<VariantContext> neverSeenVariants = new HashSet<VariantContext>();
 
@@ -1193,9 +1193,7 @@ public class SmartPhase {
 
 		for (SAMRecord r : trimmedRecords) {
 			seenInRead.clear();
-			seenInRead.trimToSize();
 			NOT_SeenInRead.clear();
-			NOT_SeenInRead.trimToSize();
 			// More than one paired end read found
 			if (pairedEndReads.containsKey(r.getReadName()) && pairedEndReads.get(r.getReadName()) != null) {
 				ArrayList<SAMRecord> allPairedRecords = pairedEndReads.get(r.getReadName());
@@ -1661,7 +1659,7 @@ public class SmartPhase {
 		}
 
 		boolean varEx1Seen = false;
-		ArrayList<VariantContext> exVarList = new ArrayList<VariantContext>();
+		HashSet<VariantContext> exVarList = new HashSet<VariantContext>();
 		for (VariantContext v : trimPosVarsInRead) {
 
 			Genotype patGT = v.getGenotype(PATIENT_ID);
@@ -1781,8 +1779,7 @@ public class SmartPhase {
 					neverSeenVariants.remove(v);
 
 					seenInRead.add(v);
-					// Increase CIS counter for all also found with this
-					// read
+					// Increase CIS counter for all also found with this read
 					phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd,
 							Phase.CIS);
 
@@ -1817,7 +1814,7 @@ public class SmartPhase {
 	}
 
 	private static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> updatePhaseCounter(
-			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter, ArrayList<VariantContext> group,
+			HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter, HashSet<VariantContext> group,
 			VariantContext v, SAMRecord r, int subStrStart, int subStrEnd, Phase phase) {
 		// One subtracted as we are working now with indexes and not substrings
 		subStrEnd = subStrEnd - 1;
@@ -1839,11 +1836,14 @@ public class SmartPhase {
 		}
 		final double finalAverageQuality = averageQuality;
 		for (VariantContext member : group) {
+			//TODO: Only update if member != v
 			HashSet<VariantContext> key = new HashSet<VariantContext>();
 			key.add(v);
 			key.add(member);
-			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
-					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);
+			if(key.size() != 1) {
+				phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
+						(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);								
+			}
 		}
 		return phaseCounter;
 	}
