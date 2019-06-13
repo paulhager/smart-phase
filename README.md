@@ -5,7 +5,7 @@ It accurately and efficiently reduces the number of possible compound heterozygo
 To achieve this, SmartPhase is able to incorporate parental genotype information as well as reads generated from DNA- or RNA-sequencing.
 Furthermore, it incorporates existing haplotype information and applies logical rules to exclude variant constellations that cannot be disease causing.
 
-For a more thorough explanation of SmartPhase and it's validation, please refer to the following: <LINK TO ARTICLE/PREPRINT>
+For a more thorough explanation of SmartPhase and its validation, please refer to the following: <LINK TO ARTICLE/PREPRINT>
 
 SmartPhase is offered as an executable JAR, but can also be compiled from its source code.
 The following documentation serves as a general overview and explanation of all its arguments and recommended values.
