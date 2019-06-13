@@ -1552,9 +1552,6 @@ public class SmartPhase {
 			return null;
 		}
 		HaplotypeBlock hb = null;
-		if(secondVar.getStart() == 1887245) {
-			System.out.println();
-		}
 		if (pairedReadsVarMaps.containsKey(secondVar)) {
 			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
 			while (intervalBlocksIterator.hasNext()) {
