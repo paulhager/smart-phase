@@ -34,11 +34,11 @@ To do so, execute the following commands
 
 ```
 git clone https://github.com/paulhager/smart-phase.git
-cd ./Phase/src/
+cd ./smart-phase/Phase/src/
 mvn clean install
 ```
 
-The resulting `smartPhase.jar` file will be located in `./Phase/src/target/smartPhase.jar`.
+The resulting `smartPhase-x.x.x.jar` file will be located in `./Phase/src/target/smartPhase-x.x.x.jar`.
 This can then be moved to the repository root directory to replace the included pre-compiled JAR.
 If you do so, you can immediately test SmartPhase with the Use Case command explained below. 
 Otherwise, you have to adjust the location of the `smartPhase.jar` accordingly.
