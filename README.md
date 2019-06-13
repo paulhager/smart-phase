@@ -187,15 +187,6 @@ By default this information is taken as correct and those variants that have alr
 To phase all variants in a file, regardless of other phasing information present, add this argument.
 
 ```
--v or --validation
-```
-
-A boolean flag indicating that validation files should be generated and output alongside the regular output file.
-Extra generated files list all haplotype block lengths, the confidence scores all variants correctly and incorrectly called, connectivity information and mean switch error calculations.
-Files are created in the same location as the regular output file.
-This flag requires that the true phase of the patient in all variants is in the all variants file (-a).
-
-```
 -vcf
 ```
 

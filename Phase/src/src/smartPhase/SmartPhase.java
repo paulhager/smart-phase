@@ -171,7 +171,7 @@ public class SmartPhase {
 		Option rejectPhaseOption = Option.builder("x").longOpt("reject-phase").desc("Indicates phase already present in vcf should be disregarded").build();
 		optionsList.add(rejectPhaseOption);
 		
-		Option validationOption = Option.builder("v").longOpt("validation").desc("Indicates extra output files to assist in validation by calculating and providing data for switch error and phase connectivity should be created. Files will be created in the same location as the primary output file").build();
+		Option validationOption = Option.builder("v").longOpt("validation").desc("Internal validation option. Do not use.").build();
 		optionsList.add(validationOption);
 		
 		Option vcfWriteOption = Option.builder("vcf").desc("Indicates a vcf file should be generated to include the results of phasing. Requires a confidence cutoff specified through the --confidence option.").build();
