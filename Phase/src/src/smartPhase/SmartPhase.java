@@ -88,6 +88,8 @@ public class SmartPhase {
 	static ArrayList<SAMRecordIterator> samIteratorList = new ArrayList<SAMRecordIterator>();
 	static HashMap<SAMRecordIterator, SAMRecord> grabLastRec = new HashMap<SAMRecordIterator, SAMRecord>();
 	static HashMap<String, SAMRecord> pairedEndReads = new HashMap<String, SAMRecord>();
+	static HashMap<String, SAMRecord> pairedEndReadsHelperRecord = new HashMap<String, SAMRecord>();
+	static HashMap<String, SAMRecord> pairedEndReadsHelperName = new HashMap<String, SAMRecord>();
 	static SAMRecord curRec = null;
 	static File[] inputREADFILES = null;
 	static String prevContig = "";
@@ -1116,24 +1118,14 @@ public class SmartPhase {
 						|| curRec.isSecondaryAlignment()) {
 					continue;
 				}
-
+				
 				if (curRec.getEnd() >= intervalStart) {
 					readsExamined++;
 				}
 
 				if (curRec.getEnd() >= intervalStart) {
 					if (curRec.getReadPairedFlag()) {
-						if (!pairedEndReads.containsKey(curRec.getReadName())) {
-							pairedEndReads.put(curRec.getReadName(), null);
-						} else {
-							/*
-							ArrayList<SAMRecord> allPairedRecords = (pairedEndReads.get(curRec.getReadName()) == null)
-									? new ArrayList<SAMRecord>()
-									: pairedEndReads.get(curRec.getReadName());
-							allPairedRecords.add(curRec);
-							*/
-							pairedEndReads.put(curRec.getReadName(), curRec);
-						}
+						pairedEndReads.put(changeNameToOtherPair(curRec.getPairedReadName()), curRec);
 					}
 					curRecords.add(curRec);
 				}
@@ -1184,6 +1176,17 @@ public class SmartPhase {
 		}
 		return intervalBlocks;
 	}
+	
+	private static String changeNameToOtherPair(String name) throws Exception {
+		if(name.charAt(name.length()-3) == '1') {
+			name = name.substring(0, name.length()-3) + "2" + name.substring(name.length()-2);
+		} else if(name.charAt(name.length()-3) == '2') {
+			name = name.substring(0, name.length()-3) + "1" + name.substring(name.length()-2);
+		} else {
+			throw new Exception("Expected paired name to be either 1/2 or 2/2");
+		}
+		return name;
+	}
 
 	private static ArrayList<HaplotypeBlock> phasePIR(ArrayList<VariantContext> variantsToPhase,
 			ArrayList<SAMRecord> trimmedRecords, Interval curInterval, ArrayList<VariantContext> trioVars)
@@ -1195,6 +1198,7 @@ public class SmartPhase {
 		skipIntronCounter.clear();
 
 		exonStartVars = new HashMap<VariantContext, VariantContext>();
+		HashSet<String> examinedPairedReadNames = new HashSet<String>();
 
 		for (SAMRecord r : trimmedRecords) {
 			seenInRead.clear();
@@ -1202,8 +1206,16 @@ public class SmartPhase {
 			varToStartHash.clear();
 			varToEndHash.clear();
 			// More than one paired end read found
-			if (pairedEndReads.containsKey(r.getReadName()) && pairedEndReads.get(r.getReadName()) != null) {
-				SAMRecord pairedRecord = pairedEndReads.get(r.getReadName());
+			if (pairedEndReads.containsKey(r.getPairedReadName()) && pairedEndReads.get(r.getPairedReadName()) != null) {
+				SAMRecord pairedRecord = pairedEndReads.get(r.getPairedReadName());
+				
+				//ensure paired end reads are only looked at once
+				if(examinedPairedReadNames.contains(r.getReadName())) {
+					continue;
+				}
+				
+				examinedPairedReadNames.add(r.getReadName());
+				
 				// Grab a random variant from read to create the
 				// links for merging down the road
 				VariantContext ranVar1;
@@ -1211,7 +1223,10 @@ public class SmartPhase {
 				ranVar2 = countEvidence(pairedRecord, variantsToPhase, true);
 				ranVar1 = countEvidence(r, variantsToPhase, true);
 				if(ranVar1 != null && ranVar2 != null) {
-					pairedReadsVarMaps.put(ranVar1, ranVar2);
+					if(ranVar1.getStart() != ranVar2.getStart()) {
+						pairedReadsVarMaps.put(ranVar1, ranVar2);
+						pairedReadsVarMaps.put(ranVar2, ranVar1);
+					}
 				}
 			} else {
 				countEvidence(r, variantsToPhase, false);
@@ -1537,10 +1552,13 @@ public class SmartPhase {
 			return null;
 		}
 		HaplotypeBlock hb = null;
+		if(secondVar.getStart() == 1887245) {
+			System.out.println();
+		}
 		if (pairedReadsVarMaps.containsKey(secondVar)) {
 			VariantContext connectionVar = pairedReadsVarMaps.get(secondVar);
-			while (intervalBlocksIterator.hasPrevious()) {
-				hb = intervalBlocksIterator.previous();
+			while (intervalBlocksIterator.hasNext()) {
+				hb = intervalBlocksIterator.next();
 				HaplotypeBlock.Strand conVarStrand = hb.getStrandSimVC(connectionVar);
 				if (conVarStrand != null && hapBlock.getStrandSimVC(connectionVar) == null) {
 					HashSet<VariantContext> key = new HashSet<VariantContext>();
@@ -1807,10 +1825,10 @@ public class SmartPhase {
 		SAMRecord r2 = r;
 		// Check if start or end is outside of record indicating paired end read that needs to be grabbed
 		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getStart()+(subStrEnd1-subStrStart1-1) || v1.getStart()+(subStrEnd1-subStrStart1-1) > r.getEnd()) {
-			r1 = pairedEndReads.get(r.getReadName());
+			r1 = pairedEndReads.get(r.getPairedReadName());
 		}
 		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getStart()+(subStrEnd2-subStrStart2-1) || v2.getStart()+(subStrEnd2-subStrStart2-1)> r.getEnd()) {
-			r2 = pairedEndReads.get(r.getReadName());
+			r2 = pairedEndReads.get(r.getPairedReadName());
 		}
 		
 		// One subtracted as we are working now with indexes and not substrings
