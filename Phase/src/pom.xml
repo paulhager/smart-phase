@@ -7,7 +7,7 @@
   
   <groupId>smartPhase</groupId>
   <artifactId>smartPhase</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   
   <dependencies>
   	<!-- https://mvnrepository.com/artifact/com.github.samtools/htsjdk -->
