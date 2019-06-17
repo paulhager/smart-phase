@@ -929,15 +929,6 @@ public class SmartPhase {
 				for (VariantContext missingVar : missingVars) {
 					System.err.println("Could not find variant: " + constructVariantString(missingVar));
 				}
-				
-				/*
-				//Inform user of found vars
-				for(VariantContext posVoundVar: regionFiltVariantList) {
-					if(!missingVars.contains(posVoundVar)) {
-						System.err.println("Found variant: " + posVoundVar.getStart());
-					}
-				}
-				*/
 
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -1757,9 +1748,6 @@ public class SmartPhase {
 			// Increase observed count
 			//phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
 			//phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
-			if(v.getStart() == 50432446) {
-				System.out.println();
-			}
 
 			// Check alternative allele co-occurence on read
 			if ((!delVar || del) && (!insertVar || insert)) {
@@ -1800,6 +1788,17 @@ public class SmartPhase {
 				phaseCounter = updatePhaseCounter(phaseCounter, seenRead, notSeenRead, r, varToStartHash, varToEndHash, Phase.TRANS);
 			}
 		}
+		
+		alreadyCounted.clear();
+		for(VariantContext notSeenRead1 : NOT_SeenInRead) {
+			alreadyCounted.add(notSeenRead1);
+			for(VariantContext notSeenRead2 : NOT_SeenInRead) {
+				if(!alreadyCounted.contains(notSeenRead2)) {
+					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
+				}
+			}
+		}
+		
 	
 		if(pairedEndRead) {
 			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
@@ -1870,8 +1869,10 @@ public class SmartPhase {
 		HashSet<VariantContext> key = new HashSet<VariantContext>();
 		key.add(v1);
 		key.add(v2);
-		phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
-				(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);
+		if(!phase.equals(Phase.TOTAL_OBSERVED)) {
+			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
+					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);			
+		}
 		phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
 				(k, val) -> (val == null) ? 1.0 : val + 1.0);
 		return phaseCounter;
