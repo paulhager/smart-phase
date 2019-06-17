@@ -929,15 +929,6 @@ public class SmartPhase {
 				for (VariantContext missingVar : missingVars) {
 					System.err.println("Could not find variant: " + constructVariantString(missingVar));
 				}
-				
-				/*
-				//Inform user of found vars
-				for(VariantContext posVoundVar: regionFiltVariantList) {
-					if(!missingVars.contains(posVoundVar)) {
-						System.err.println("Found variant: " + posVoundVar.getStart());
-					}
-				}
-				*/
 
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -1341,10 +1332,6 @@ public class SmartPhase {
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 
 			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
-			
-			if(firstVar.getStart() == 4279455 && secondVar.getStart() == 4279792) {
-				System.out.println();
-			}
 
 			// Check if trio info contradicts how cis/trans counters would add
 			// var to curBlock
