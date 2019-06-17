@@ -1656,7 +1656,7 @@ public class SmartPhase {
 
 			// Check if deletion is on this read and if variant is deletion
 			// variant
-			boolean del = (r.getReadPositionAtReferencePosition(v.getStart() + v.getAlternateAllele(0).length() - 1,
+			boolean del = (r.getReadPositionAtReferencePosition(v.getStart() + v.getReference().length() - 1,
 					false) == 0) ? true : false;
 			boolean delVar = (v.isSimpleDeletion()) ? true : false;
 
@@ -1757,6 +1757,9 @@ public class SmartPhase {
 			// Increase observed count
 			//phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
 			//phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
+			if(v.getStart() == 50432446) {
+				System.out.println();
+			}
 
 			// Check alternative allele co-occurence on read
 			if ((!delVar || del) && (!insertVar || insert)) {
