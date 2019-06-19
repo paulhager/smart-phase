@@ -1637,7 +1637,6 @@ public class SmartPhase {
 		boolean varEx1Seen = false;
 		VariantContext exonVar = null;
 		for (VariantContext v : trimPosVarsInRead) {
-
 			Genotype patGT = v.getGenotype(PATIENT_ID);
 
 			// Ensure file is normalized
@@ -1669,20 +1668,25 @@ public class SmartPhase {
 			// alternative alleles in variant
 			int subStrStart = r.getReadPositionAtReferencePosition(v.getStart(), false) - 1;
 			int subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + allele.length() - 1, false);
-
+			
 			// Disregard variants who start in the middle of deletions
 			// as
 			// these aren't called correctly.
 			if (subStrStart == -1 || subStrEnd == 0) {
+				seenInRead.remove(v);
+				NOT_SeenInRead.remove(v);
 				continue;
 			}
 
 			if (insert && insertVar) {
 				subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
 				if (subStrEnd == -1) {
+					seenInRead.remove(v);
+					NOT_SeenInRead.remove(v);
 					continue;
 				}
 			}
+			
 			
 			varToStartHash.put(v, subStrStart);
 			varToEndHash.put(v, subStrEnd);
@@ -1745,10 +1749,6 @@ public class SmartPhase {
 			SAMRecord dummyRead = new SAMRecord(null);
 			dummyRead.setBaseQualityString("*");
 
-			// Increase observed count
-			//phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
-			//phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, dummyRead, subStrStart, subStrEnd, Phase.TOTAL_OBSERVED);
-
 			// Check alternative allele co-occurence on read
 			if ((!delVar || del) && (!insertVar || insert)) {
 
@@ -1757,19 +1757,8 @@ public class SmartPhase {
 					neverSeenVariants.remove(v);
 
 					seenInRead.add(v);
-					// Increase CIS counter for all also found with this read
-					//phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.CIS);
-
-					// Increase TRANS counter for all examined and NOT
-					// found on this read
-					//phaseCounter = updatePhaseCounter(phaseCounter, NOT_SeenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 				} else {
-
 					NOT_SeenInRead.add(v);
-
-					// Increase TRANS counter for all examined and
-					// found on this read
-					//phaseCounter = updatePhaseCounter(phaseCounter, seenInRead, v, r, subStrStart, subStrEnd, Phase.TRANS);
 				}
 			} else {
 				NOT_SeenInRead.add(v);
@@ -1829,6 +1818,7 @@ public class SmartPhase {
 		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getStart()+(subStrEnd2-subStrStart2-1) || v2.getStart()+(subStrEnd2-subStrStart2-1)> r.getEnd()) {
 			r2 = pairedEndReads.get(r.getPairedReadName());
 		}
+		
 		
 		// One subtracted as we are working now with indexes and not substrings
 		subStrEnd1 = subStrEnd1 - 1;
