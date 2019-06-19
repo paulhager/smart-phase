@@ -1647,7 +1647,7 @@ public class SmartPhase {
 			// Check if deletion is on this read and if variant is deletion
 			// variant
 			boolean del = true;
-			for(int offset = 0; offset < v.getReference().length(); offset++) {
+			for(int offset = 1; offset < v.getReference().length(); offset++) {
 				if(r.getReadPositionAtReferencePosition(v.getStart() + offset, false) != 0) {
 					del = false;
 				}
@@ -1759,10 +1759,6 @@ public class SmartPhase {
 
 				// Variant is found in read
 				if (allele.basesMatch(Arrays.copyOfRange(r.getReadBases(), subStrStart, subStrEnd))) {
-					
-					if(v.getStart() == 590453) {
-						System.out.println();
-					}
 					
 					neverSeenVariants.remove(v);
 
