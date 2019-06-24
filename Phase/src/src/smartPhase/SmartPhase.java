@@ -1800,25 +1800,24 @@ public class SmartPhase {
 		
 	
 		if(pairedEndRead) {
+			if(r.getReadName().equals("hapl1_@chr1:152190135-152191275-322")) {
+				System.out.println();
+			}
 			for(VariantContext seenRead : seenInRead) {
-				alreadyCounted.add(seenRead);
 				for(VariantContext seenRead2 : paired_SeenInRead) {
-					if(!alreadyCounted.contains(seenRead2)) {
-						phaseCounter = updatePhaseCounter(phaseCounter, seenRead, seenRead2, r, varToStartHash, varToEndHash, Phase.CIS);					
-					}
+					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, seenRead2, r, varToStartHash, varToEndHash, Phase.CIS);					
 				}
 				for(VariantContext notSeenRead : paired_NOT_SeenInRead) {
 					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, notSeenRead, r, varToStartHash, varToEndHash, Phase.TRANS);
 				}
 			}
 			
-			alreadyCounted.clear();
 			for(VariantContext notSeenRead1 : NOT_SeenInRead) {
-				alreadyCounted.add(notSeenRead1);
+				for(VariantContext seenRead2 : paired_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, seenRead2, r, varToStartHash, varToEndHash, Phase.TRANS);					
+				}
 				for(VariantContext notSeenRead2 : paired_NOT_SeenInRead) {
-					if(!alreadyCounted.contains(notSeenRead2)) {
-						phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
-					}
+					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
 				}
 			}
 			paired_SeenInRead = seenInRead;
