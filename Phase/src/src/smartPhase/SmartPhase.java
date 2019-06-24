@@ -96,8 +96,9 @@ public class SmartPhase {
 	static double[] minMAPQ;
 	static double vcfCutoff = 0;
 
-	static HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
-	static HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
+	
+	static HashSet<VariantContext> paired_SeenInRead = new HashSet<VariantContext>();
+	static HashSet<VariantContext> paired_NOT_SeenInRead = new HashSet<VariantContext>();
 	
 
 	static HashMap<VariantContext, Integer> varToStartHash = new HashMap<VariantContext, Integer>();
@@ -1192,8 +1193,6 @@ public class SmartPhase {
 		HashSet<String> examinedPairedReadNames = new HashSet<String>();
 
 		for (SAMRecord r : trimmedRecords) {
-			seenInRead.clear();
-			NOT_SeenInRead.clear();
 			varToStartHash.clear();
 			varToEndHash.clear();
 			// More than one paired end read found
@@ -1211,6 +1210,8 @@ public class SmartPhase {
 				// links for merging down the road
 				VariantContext ranVar1;
 				VariantContext ranVar2;
+				paired_SeenInRead.clear();
+				paired_NOT_SeenInRead.clear();
 				ranVar2 = countEvidence(pairedRecord, variantsToPhase, true);
 				ranVar1 = countEvidence(r, variantsToPhase, true);
 				if(ranVar1 != null && ranVar2 != null) {
@@ -1636,6 +1637,10 @@ public class SmartPhase {
 
 		boolean varEx1Seen = false;
 		VariantContext exonVar = null;
+		
+		HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
+		HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
+		
 		for (VariantContext v : trimPosVarsInRead) {
 			Genotype patGT = v.getGenotype(PATIENT_ID);
 
@@ -1678,26 +1683,18 @@ public class SmartPhase {
 			// as
 			// these aren't called correctly.
 			if (subStrStart == -1 || subStrEnd == 0) {
-				seenInRead.remove(v);
-				NOT_SeenInRead.remove(v);
+				//seenInRead.remove(v);
+				//NOT_SeenInRead.remove(v);
 				continue;
 			}
 
 			if (insert && insertVar) {
 				subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
 				if (subStrEnd == -1) {
-					seenInRead.remove(v);
-					NOT_SeenInRead.remove(v);
+					//seenInRead.remove(v);
+					//NOT_SeenInRead.remove(v);
 					continue;
 				}
-			}
-			
-			if(v.getStart() == 1017608 && subStrStart == 39) {
-				System.out.println();
-			}
-			
-			if(v.getStart() == 1017608 && r.getReadName().equals("NS500378:289:HTVJTBGX9:3:12509:18066:12197")) {
-				System.out.println();
 			}
 			
 			varToStartHash.put(v, subStrStart);
@@ -1803,6 +1800,29 @@ public class SmartPhase {
 		
 	
 		if(pairedEndRead) {
+			for(VariantContext seenRead : seenInRead) {
+				alreadyCounted.add(seenRead);
+				for(VariantContext seenRead2 : paired_SeenInRead) {
+					if(!alreadyCounted.contains(seenRead2)) {
+						phaseCounter = updatePhaseCounter(phaseCounter, seenRead, seenRead2, r, varToStartHash, varToEndHash, Phase.CIS);					
+					}
+				}
+				for(VariantContext notSeenRead : paired_NOT_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, notSeenRead, r, varToStartHash, varToEndHash, Phase.TRANS);
+				}
+			}
+			
+			alreadyCounted.clear();
+			for(VariantContext notSeenRead1 : NOT_SeenInRead) {
+				alreadyCounted.add(notSeenRead1);
+				for(VariantContext notSeenRead2 : paired_NOT_SeenInRead) {
+					if(!alreadyCounted.contains(notSeenRead2)) {
+						phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
+					}
+				}
+			}
+			paired_SeenInRead = seenInRead;
+			paired_NOT_SeenInRead = NOT_SeenInRead;
 			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
 				VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
 				if(!neverSeenVariants.contains(possibleLinkerVar)) {
