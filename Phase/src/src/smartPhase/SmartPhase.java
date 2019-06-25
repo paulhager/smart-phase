@@ -1844,10 +1844,10 @@ public class SmartPhase {
 		SAMRecord r1 = r;
 		SAMRecord r2 = r;
 		// Check if start or end is outside of record indicating paired end read that needs to be grabbed
-		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getEnd() || v1.getEnd() > r.getEnd()) {
+		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getEnd() || v1.getEnd() > r.getEnd() ||  r.getStart() > v1.getStart() + subStrEnd1 - subStrStart1 - 1 || v1.getStart() + subStrEnd1 - subStrStart1 - 1 > r.getEnd()) {
 			r1 = pairedEndReads.get(r.getPairedReadName());
 		}
-		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getEnd() || v2.getEnd() > r.getEnd()) {
+		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getEnd() || v2.getEnd() > r.getEnd() || r.getStart() > v2.getStart() + subStrEnd2 - subStrStart2 - 1 || v2.getStart() + subStrEnd2 - subStrStart2 - 1 > r.getEnd()) {
 			r2 = pairedEndReads.get(r.getPairedReadName());
 		}
 		
