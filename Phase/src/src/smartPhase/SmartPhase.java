@@ -96,8 +96,9 @@ public class SmartPhase {
 	static double[] minMAPQ;
 	static double vcfCutoff = 0;
 
-	static HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
-	static HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
+	
+	static HashSet<VariantContext> paired_SeenInRead = new HashSet<VariantContext>();
+	static HashSet<VariantContext> paired_NOT_SeenInRead = new HashSet<VariantContext>();
 	
 
 	static HashMap<VariantContext, Integer> varToStartHash = new HashMap<VariantContext, Integer>();
@@ -1192,8 +1193,6 @@ public class SmartPhase {
 		HashSet<String> examinedPairedReadNames = new HashSet<String>();
 
 		for (SAMRecord r : trimmedRecords) {
-			seenInRead.clear();
-			NOT_SeenInRead.clear();
 			varToStartHash.clear();
 			varToEndHash.clear();
 			// More than one paired end read found
@@ -1211,6 +1210,8 @@ public class SmartPhase {
 				// links for merging down the road
 				VariantContext ranVar1;
 				VariantContext ranVar2;
+				paired_SeenInRead.clear();
+				paired_NOT_SeenInRead.clear();
 				ranVar2 = countEvidence(pairedRecord, variantsToPhase, true);
 				ranVar1 = countEvidence(r, variantsToPhase, true);
 				if(ranVar1 != null && ranVar2 != null) {
@@ -1636,6 +1637,10 @@ public class SmartPhase {
 
 		boolean varEx1Seen = false;
 		VariantContext exonVar = null;
+		
+		HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
+		HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
+		
 		for (VariantContext v : trimPosVarsInRead) {
 			Genotype patGT = v.getGenotype(PATIENT_ID);
 
@@ -1678,20 +1683,19 @@ public class SmartPhase {
 			// as
 			// these aren't called correctly.
 			if (subStrStart == -1 || subStrEnd == 0) {
-				seenInRead.remove(v);
-				NOT_SeenInRead.remove(v);
+				//seenInRead.remove(v);
+				//NOT_SeenInRead.remove(v);
 				continue;
 			}
 
 			if (insert && insertVar) {
 				subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
 				if (subStrEnd == -1) {
-					seenInRead.remove(v);
-					NOT_SeenInRead.remove(v);
+					//seenInRead.remove(v);
+					//NOT_SeenInRead.remove(v);
 					continue;
 				}
 			}
-			
 			
 			varToStartHash.put(v, subStrStart);
 			varToEndHash.put(v, subStrEnd);
@@ -1796,6 +1800,28 @@ public class SmartPhase {
 		
 	
 		if(pairedEndRead) {
+			if(r.getReadName().equals("hapl1_@chr1:152190135-152191275-322")) {
+				System.out.println();
+			}
+			for(VariantContext seenRead : seenInRead) {
+				for(VariantContext seenRead2 : paired_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, seenRead2, r, varToStartHash, varToEndHash, Phase.CIS);					
+				}
+				for(VariantContext notSeenRead : paired_NOT_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, notSeenRead, r, varToStartHash, varToEndHash, Phase.TRANS);
+				}
+			}
+			
+			for(VariantContext notSeenRead1 : NOT_SeenInRead) {
+				for(VariantContext seenRead2 : paired_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, seenRead2, r, varToStartHash, varToEndHash, Phase.TRANS);					
+				}
+				for(VariantContext notSeenRead2 : paired_NOT_SeenInRead) {
+					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
+				}
+			}
+			paired_SeenInRead = seenInRead;
+			paired_NOT_SeenInRead = NOT_SeenInRead;
 			for(int index = 0; index < trimPosVarsInRead.size(); index++) {
 				VariantContext possibleLinkerVar = trimPosVarsInRead.get(index);
 				if(!neverSeenVariants.contains(possibleLinkerVar)) {
@@ -1818,10 +1844,10 @@ public class SmartPhase {
 		SAMRecord r1 = r;
 		SAMRecord r2 = r;
 		// Check if start or end is outside of record indicating paired end read that needs to be grabbed
-		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getStart()+(subStrEnd1-subStrStart1-1) || v1.getStart()+(subStrEnd1-subStrStart1-1) > r.getEnd()) {
+		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getEnd() || v1.getEnd() > r.getEnd()) {
 			r1 = pairedEndReads.get(r.getPairedReadName());
 		}
-		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getStart()+(subStrEnd2-subStrStart2-1) || v2.getStart()+(subStrEnd2-subStrStart2-1)> r.getEnd()) {
+		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getEnd() || v2.getEnd() > r.getEnd()) {
 			r2 = pairedEndReads.get(r.getPairedReadName());
 		}
 		
