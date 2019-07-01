@@ -1641,6 +1641,10 @@ public class SmartPhase {
 		HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
 		HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
 		
+		if(r.getReadName().equals("NS500378:17:H17TGBGXX:4:11510:25839:1187")) {
+			System.out.println();
+		}
+		
 		for (VariantContext v : trimPosVarsInRead) {
 			Genotype patGT = v.getGenotype(PATIENT_ID);
 
@@ -1683,16 +1687,16 @@ public class SmartPhase {
 			// as
 			// these aren't called correctly.
 			if (subStrStart == -1 || subStrEnd == 0) {
-				//seenInRead.remove(v);
-				//NOT_SeenInRead.remove(v);
+				paired_SeenInRead.remove(v);
+				paired_NOT_SeenInRead.remove(v);
 				continue;
 			}
 
 			if (insert && insertVar) {
 				subStrEnd = r.getReadPositionAtReferencePosition(v.getStart() + 1, false) - 1;
 				if (subStrEnd == -1) {
-					//seenInRead.remove(v);
-					//NOT_SeenInRead.remove(v);
+					paired_SeenInRead.remove(v);
+					paired_NOT_SeenInRead.remove(v);
 					continue;
 				}
 			}
@@ -1800,7 +1804,7 @@ public class SmartPhase {
 		
 	
 		if(pairedEndRead) {
-			if(r.getReadName().equals("hapl1_@chr1:152190135-152191275-322")) {
+			if(r.getReadName().equals("NS500378:17:H17TGBGXX:4:11510:25839:1187")) {
 				System.out.println();
 			}
 			for(VariantContext seenRead : seenInRead) {
@@ -1844,7 +1848,7 @@ public class SmartPhase {
 		SAMRecord r1 = r;
 		SAMRecord r2 = r;
 		// Check if start or end is outside of record indicating paired end read that needs to be grabbed
-		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getEnd() || v1.getEnd() > r.getEnd() ||  r.getStart() > v1.getStart() + subStrEnd1 - subStrStart1 - 1 || v1.getStart() + subStrEnd1 - subStrStart1 - 1 > r.getEnd()) {
+		if(r.getStart() > v1.getStart() || v1.getStart()  > r.getEnd() || r.getStart() > v1.getEnd() || v1.getEnd() > r.getEnd() || r.getStart() > v1.getStart() + subStrEnd1 - subStrStart1 - 1 || v1.getStart() + subStrEnd1 - subStrStart1 - 1 > r.getEnd()) {
 			r1 = pairedEndReads.get(r.getPairedReadName());
 		}
 		if(r.getStart() > v2.getStart() || v2.getStart()  > r.getEnd() || r.getStart() > v2.getEnd() || v2.getEnd() > r.getEnd() || r.getStart() > v2.getStart() + subStrEnd2 - subStrStart2 - 1 || v2.getStart() + subStrEnd2 - subStrStart2 - 1 > r.getEnd()) {
