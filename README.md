@@ -50,10 +50,10 @@ If you have compiled the `smartPhase.jar` file yourself as described above you h
 The results will be written into the `UseCase` folder.
 
 ```
-java -jar smartPhase.jar -a ./UseCase/sim.CEU.trio.chr19.phased.muc16.vcf.gz -p NA12878 \
+java -jar smartPhase.jar -a ./UseCase/CEU_UseCase.vcf.gz -p NA12878 \
 -g ./BED/allGeneRegionsCanonical.HG19.GRCh37.bed \
--r ./UseCase/simulated.art.hsxt.150l.100fc.400m.100s.NA12878.chr19.muc16.bam -m 60 \
--d ./UseCase/CEU.ped -o ./UseCase/smartPhase.sim.NA12878.chr19.muc16.trio.results.tsv \
+-r ./UseCase/CEU_UseCase.bam -m 60 \
+-d ./UseCase/CEU.ped -o ./UseCase/CEU_UseCase_results.tsv \
 -x -t -vcf -c 0.1
 ```
 
