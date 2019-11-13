@@ -32,6 +32,8 @@ public class PhaseCountTriple <T, U> {
 		this.variants = key;
 	}
 	
+	
+	
 	/* (non-Javadoc)
 	 * @see java.lang.Object#hashCode()
 	 */

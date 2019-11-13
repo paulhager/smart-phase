@@ -107,6 +107,7 @@ public class SmartPhase {
 	static HashSet<VariantContext> neverSeenVariants = new HashSet<VariantContext>();
 
 	static HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double> phaseCounter = new HashMap<PhaseCountTriple<Set<VariantContext>, Phase>, Double>();
+	static HashMap<VariantTuple<VariantContext, VariantContext>, ArrayList<Double>> transCombiCounter = new HashMap<VariantTuple<VariantContext, VariantContext>, ArrayList<Double>>();
 	static HashMap<VariantContext, VariantContext> pairedReadsVarMaps = new HashMap<VariantContext, VariantContext>();
 
 	static String PATIENT_ID;
@@ -1348,10 +1349,11 @@ public class SmartPhase {
 
 			cisCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS),
 					0.0);
-			transCounter = phaseCounter.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS),
-					0.0);
+			transCounter = calcTransScore(firstVar, secondVar);
 			observedCounter = phaseCounter.getOrDefault(
 					new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
+			
+			//System.out.println(cisCounter+"|"+transCounter+"|"+observedCounter);
 
 			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
 
@@ -1554,6 +1556,33 @@ public class SmartPhase {
 		// twice for overlapping intervals.
 		return intervalBlocks;
 	}
+	
+	private static double calcTransScore(VariantContext firstVar, VariantContext secondVar) {
+		ArrayList<Double> firstScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(firstVar, secondVar), new ArrayList<Double>());
+		ArrayList<Double> secondScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(secondVar, firstVar), new ArrayList<Double>());
+		
+		
+		
+		int sizeFirst = firstScores.size(); 
+		int sizeSecond = secondScores.size(); 
+		int dif = Math.abs(sizeFirst - sizeSecond);
+		
+		if(dif == Math.max(sizeFirst, sizeSecond) && dif != 0) {
+			dif--;
+		}
+		
+		List<Double> cutList = new ArrayList<Double>();
+		
+		if(sizeFirst > sizeSecond) {
+			Collections.sort(firstScores);
+			cutList = firstScores.subList(dif, sizeFirst);
+		} else {
+			Collections.sort(secondScores);
+			cutList = secondScores.subList(dif, sizeSecond);
+		}
+		
+		return 2*cutList.stream().mapToDouble(Double::doubleValue).sum();
+	}
 
 	// Merge blocks if variant is part of read pair
 	private static HaplotypeBlock mergePairedReads(VariantContext firstVar, VariantContext secondVar,
@@ -1576,11 +1605,11 @@ public class SmartPhase {
 					key.add(connectionVar);
 					double cisCounter = phaseCounter
 							.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.CIS), 0.0);
-					double transCounter = phaseCounter
-							.getOrDefault(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TRANS), 0.0);
+					double transCounter = calcTransScore(secondVar, connectionVar);
 					double observedCounter = phaseCounter.getOrDefault(
 							new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
 							Double.MAX_VALUE);
+					//System.out.println(cisCounter+"|"+transCounter+"|"+observedCounter);
 				
 					
 					double confidence = Math
@@ -1661,10 +1690,6 @@ public class SmartPhase {
 		
 		HashSet<VariantContext> seenInRead = new HashSet<VariantContext>();
 		HashSet<VariantContext> NOT_SeenInRead = new HashSet<VariantContext>();
-		
-		if(r.getReadName().equals("NS500378:17:H17TGBGXX:4:11510:25839:1187")) {
-			System.out.println();
-		}
 		
 		for (VariantContext v : trimPosVarsInRead) {
 			Genotype patGT = v.getGenotype(PATIENT_ID);
@@ -1764,7 +1789,7 @@ public class SmartPhase {
 									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exonVar, v, r,
 											varToStartHash, varToEndHash, Phase.CIS);
 								} else {
-									skipIntronCounter = updatePhaseCounter(skipIntronCounter, exonVar, v, r,
+									skipIntronCounter = updatePhaseCounter(skipIntronCounter, v, exonVar, r,
 											varToStartHash, varToEndHash, Phase.TRANS);
 								}
 							} else if (varEx1Seen) {
@@ -1825,9 +1850,6 @@ public class SmartPhase {
 		
 	
 		if(pairedEndRead) {
-			if(r.getReadName().equals("NS500378:17:H17TGBGXX:4:11510:25839:1187")) {
-				System.out.println();
-			}
 			for(VariantContext seenRead : seenInRead) {
 				for(VariantContext seenRead2 : paired_SeenInRead) {
 					phaseCounter = updatePhaseCounter(phaseCounter, seenRead, seenRead2, r, varToStartHash, varToEndHash, Phase.CIS);					
@@ -1839,7 +1861,7 @@ public class SmartPhase {
 			
 			for(VariantContext notSeenRead1 : NOT_SeenInRead) {
 				for(VariantContext seenRead2 : paired_SeenInRead) {
-					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, seenRead2, r, varToStartHash, varToEndHash, Phase.TRANS);					
+					phaseCounter = updatePhaseCounter(phaseCounter, seenRead2, notSeenRead1, r, varToStartHash, varToEndHash, Phase.TRANS);					
 				}
 				for(VariantContext notSeenRead2 : paired_NOT_SeenInRead) {
 					phaseCounter = updatePhaseCounter(phaseCounter, notSeenRead1, notSeenRead2, r, varToStartHash, varToEndHash, Phase.TOTAL_OBSERVED);
@@ -1916,10 +1938,18 @@ public class SmartPhase {
 		HashSet<VariantContext> key = new HashSet<VariantContext>();
 		key.add(v1);
 		key.add(v2);
-		if(!phase.equals(Phase.TOTAL_OBSERVED)) {
+		
+		if(phase.equals(Phase.TRANS)) {
+			// If TRANS, v1 is always the var that was seen
+			VariantTuple<VariantContext, VariantContext> k = new VariantTuple<VariantContext, VariantContext>(v1, v2);
+			ArrayList<Double> curCounts = transCombiCounter.getOrDefault(k, new ArrayList<Double>());
+			curCounts.add(finalAverageQuality);
+			transCombiCounter.put(k, curCounts);
+		} else if (phase.equals(Phase.CIS)) {
 			phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, phase),
 					(k, val) -> (val == null) ? finalAverageQuality : val + finalAverageQuality);			
 		}
+		
 		phaseCounter.compute(new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED),
 				(k, val) -> (val == null) ? 1.0 : val + 1.0);
 		return phaseCounter;
