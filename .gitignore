@@ -5,9 +5,11 @@ Validation/YRI
 Validation/LICENCE
 Validation/out.log
 Validation/shapeit*
-Validation/partToExecute.sh
 Validation/bin
+Validation/benchmarks
 Validation/reference
 Validation/results
 Validation/sim
 Validation/whatshap-comparison-experiments
+Validation/Wessim
+Validation/GemSim
