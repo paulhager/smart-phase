@@ -1,8 +1,8 @@
 # Validation of SmartPhase on simulated data
 
 The validation of SmartPhase on simulated data is based on two pipelines. 
-The simulation pipeline generates FASTQ files by simulating reads of whole-exome sequencing separately for both haplotypes of the children of the CEU and the YRI trio.
-The validation pipeline maps the generated reads, executes SmartPhase and WhatsHap and evaluates the phasing predictions.
+The simulation pipeline `SimulationPipeline.sh` generates FASTQ files by simulating reads of whole-exome sequencing separately for both haplotypes of the children of the CEU and the YRI trio.
+The validation pipeline `ValidationPipeline.sh` maps the generated reads, executes SmartPhase and WhatsHap and evaluates the phasing predictions.
 
 Please note, that the simulation pipeline critically depends on the `V6_UTR_Probes_chr1_chr19.txt` file of the SureSelect Human All Exon V6 kit which must be requested from Agilent.
 The resulting files of the simulation pipeline are available at [Google Drive](https://drive.google.com/drive/folders/1PLmow_1GPOi1enHDsOanQ3w2xVmUxlTh?usp=sharing) and can be directly used to run the validation pipeline.
@@ -41,8 +41,9 @@ Both files are located in the [BED directory](https://github.com/paulhager/smart
 9. Merge the FASTQ files generated for each haplotype.
 
 ## Validation pipeline steps
+
+You can run the `ValidationPipeline.sh` without running the `SimulationPipeline.sh` by using the provided data in [Google Drive](https://drive.google.com/drive/folders/1PLmow_1GPOi1enHDsOanQ3w2xVmUxlTh?usp=sharing). Download the `sim` folder and place it in the `Validation` folder of your local copy of the `smart-phase` repository and then run `bash ValidationPipeline.sh`. The script performs the following steps:
+
 1. Run BWA-MEM to align simulated reads to the reference genome hg19.
 2. Run SmartPhase for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and extract the metrics described in the manuscript.
 3. Run WhatsHap for the children of the CEU and YRI trio in read-only and read-and-trio mode each on chr1 and chr19 using the BAM files produced in step 10 and the VCF files of step 11 and determine phasing errors.
-
-You can download the simulated data used in the publication [here](http://ibis.helmholtz-muenchen.de/smartphase/smartphase_simulation_data.tar.gz).
