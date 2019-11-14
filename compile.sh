@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mkdir ./compile
+mkdir -p ./compile
 javac -cp ./Phase/src/src/smartPhase ./Phase/src/src/smartPhase/*.java -d ./compile/ -classpath ./Phase/libraries/picard.jar:./Phase/libraries/commons-cli-1.4.jar 
 cp ./Phase/libraries/*.jar ./compile/
 cd compile/

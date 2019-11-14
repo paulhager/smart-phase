@@ -30,9 +30,9 @@ my @fields = ();
 my %excludeIntervals = ();
 my %pairToFlag = ();
 
-my $invalcsv = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_smartPhase_${trio}_VALIDATION.csv";
-my $inresults = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_smartPhase_$trio.tsv";
-my $invalconftsv = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_smartPhase_${trio}_VALIDATION_CONF.tsv";
+my $invalcsv = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_SmartPhase_${trio}_VALIDATION.csv";
+my $inresults = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_SmartPhase_$trio.tsv";
+my $invalconftsv = "$dir/sim.$fam.trio.$chr.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_SmartPhase_${trio}_VALIDATION_CONF.tsv";
 my $out = $inresults;
 $out =~ s/.tsv/.evaluation.txt/ig;
 
