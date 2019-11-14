@@ -1,29 +1,30 @@
 #!/bin/perl -w
 
-#  Copyright (C) 2018 the SmartPhase contributors.
-#  Website: https://github.com/paulhager/smart-phase
+# Copyright (C) 2018 the SmartPhase contributors.
+# Website: https://github.com/paulhager/smart-phase
+# 
+# This file is part of the SmartPhase phasing tool.
 #
-#  This file is part of the SmartPhase phasing tool.
+# The SmartPhase phasing tool is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#  The SmartPhase phasing tool is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 use strict;
 
 my $in_vcf = $ARGV[0];
 my $vars = $ARGV[1];
 my $out = $in_vcf;
-$out =~ s/.vcf.gz/.tsv/g;
+$out =~ s/.vcf.gz/_phased.tsv/g;
 
 my @header;
 my @parts;
@@ -65,11 +66,13 @@ while(my $line = <$fh>) {
 			for(my $i = 9; $i < scalar(@parts); $i++) {
 				if($parts[$i] =~ m/:/) {
 					@gt_array = split(':', $parts[$i]);
-					my $ps = $gt_array[$ps_idx];
-					if($ps ne ".") {
-						my $value = "$gt_array[0]:$ps";
-						#print "$header[$i]\t$variant\t$value\n";
-						$phased_gt_data{$header[$i]}{$variant} = $value;
+					if(scalar(@gt_array) == scalar(@format)) {
+						my $ps = $gt_array[$ps_idx];
+						if($ps ne ".") {
+							my $value = "$gt_array[0]:$ps";
+							#print "$header[$i]\t$variant\t$value\n";
+							$phased_gt_data{$header[$i]}{$variant} = $value;
+						}
 					}
 				}
 			}
@@ -79,8 +82,8 @@ while(my $line = <$fh>) {
 }
 close($fh);
 
-open($fh, '<', $vars) or die "Could not open your variants!";
-open(my $fhout, '>', $out) or die "Could not open outfile!";
+open($fh, '<', $vars) or die "Could not open $vars!";
+open(my $fhout, '>', $out) or die "Could not open $out!";
 
 print $fhout "sample_id\tpos\tpos (#1)\tCompound Het. Prediction\n";
 
