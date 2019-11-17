@@ -1561,14 +1561,19 @@ public class SmartPhase {
 		ArrayList<Double> firstScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(firstVar, secondVar), new ArrayList<Double>());
 		ArrayList<Double> secondScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(secondVar, firstVar), new ArrayList<Double>());
 		
-		
+		boolean noDouble = false;
 		
 		int sizeFirst = firstScores.size(); 
 		int sizeSecond = secondScores.size(); 
 		int dif = Math.abs(sizeFirst - sizeSecond);
 		
-		if(dif == Math.max(sizeFirst, sizeSecond) && dif != 0) {
+		if(dif == 0) {
+			return firstScores.stream().mapToDouble(Double::doubleValue).sum() + secondScores.stream().mapToDouble(Double::doubleValue).sum();
+		}
+		
+		if(dif == Math.max(sizeFirst, sizeSecond)) {
 			dif--;
+			noDouble = true;
 		}
 		
 		List<Double> cutList = new ArrayList<Double>();
@@ -1581,7 +1586,12 @@ public class SmartPhase {
 			cutList = secondScores.subList(dif, sizeSecond);
 		}
 		
-		return 2*cutList.stream().mapToDouble(Double::doubleValue).sum();
+		if(noDouble) {
+			return cutList.stream().mapToDouble(Double::doubleValue).sum();			
+		} else {
+			return 2*cutList.stream().mapToDouble(Double::doubleValue).sum();
+		}
+		
 	}
 
 	// Merge blocks if variant is part of read pair
