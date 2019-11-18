@@ -70,15 +70,15 @@ for iteration in 1 2; do
   esac
 
   # Run BWA
-  #threads=16
-  #for f in sim/$sample/*1.fq.gz; do
-  #  f2=${f/1.fq.gz/2.fq.gz}
-  #  out=${f/.1.fq.gz/.bam}
-  #  if [[ ! -f $out ]]; then
-  #    bwa mem -t $threads -R "@RG\tID:${child}\tSM:${child}" reference/human_g1k_v37.fasta $f $f2 | samtools sort -@ $threads -o $out -
-  #    samtools index $out 
-  #  fi
-  #done 
+  threads=16
+  for f in sim/$sample/*1.fq.gz; do
+    f2=${f/1.fq.gz/2.fq.gz}
+    out=${f/.1.fq.gz/.bam}
+    if [[ ! -f $out ]]; then
+      bwa mem -t $threads -R "@RG\tID:${child}\tSM:${child}" reference/human_g1k_v37.fasta $f $f2 | samtools sort -@ $threads -o $out -
+      samtools index $out 
+    fi
+  done 
 
   # Run SmartPhase
   for chrNum in ${chromosomes[@]}; do
@@ -103,4 +103,59 @@ for iteration in 1 2; do
     java -jar ../smartPhase.jar -g $merged_gene_bed -a $vcf -p $child -r $bam -m 60 -d ./ped/${sample}.ped -o results/$out -v -x -t > results/$log 2>&1
     perl ./extract_SmartPhase_stats.pl ./results $sample $child "chr$chrNum" "read+trio" 10 0.34 >> $sp_outtable
   done
+
+  # Run WhatsHap
+  for chrNum in ${chromosomes[@]}; do
+    vcf=./sim/$sample/sim.${sample}.trio.chr${chrNum}.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37.vcf.gz
+    bam=./sim/$sample/simulated.Wessim2.ill100v5_p.100l.2500000reads.250f.100d.${child}.chr${chrNum}.bam
+    if [ "$chrNum" == "1" ]; then
+          bam=./sim/$sample/simulated.Wessim2.ill100v5_p.100l.4500000reads.250f.100d.${child}.chr${chrNum}.bam
+    fi
+    eval_pairs=./results/sim.${sample}.trio.chr${chrNum}.phased.AGV6UTR.allGeneRegionsCanonical.HG19.GRCh37_evaluation_pairs.tsv
+    out_raw=$( basename $vcf )
+
+    # unphase simluated VCF
+    uv=${vcf/.vcf.gz/_unphased.vcf.gz}
+    whatshap unphase $vcf | bgzip > $uv
+    tabix -p vcf $uv
+
+    # read-only phasing
+    out=${out_raw/.vcf.gz/_WhatsHap_read-only.vcf.gz}
+    log=./results/${out/.vcf.gz/.log}
+    echo "Running WhatsHap on chr$chrNum for $sample trio in read-only mode..."
+    whatshap phase --mapq 60 --indels --sample $child -o results/$out $uv $bam > $log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    vartsv=./results/${out/.vcf.gz/_phased.tsv}
+    wherr=./results/${out/.vcf.gz/_errCalls.txt}
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/_phased.tsv} $child > $wherr
+   
+    mode="no"
+    cis_wh=$( grep -cP "\t1$" $vartsv )
+    trans_wh=$( grep -cP "\t2$" $vartsv )
+    phased_wh=$(( cis_wh + trans_wh ))
+    not_phased_wh=$( grep -cP "\t4$" $vartsv )
+    errors_wh=$( tail -n +2 $wherr | wc -l  | cut -d " " -f1 )
+    runtime_wh=$( tail -n1 $log | rev | cut -d " " -f2 | rev )
+    echo -e "${sample}\t$mode\t$chrNum\t$runtime_wh\t$cis_wh\t$trans_wh\t$phased_wh\t$not_phased_wh\t$errors_wh" >> $wh_outtable
+
+    # read and trio phasing
+    out=${out_raw/.vcf.gz/_WhatsHap_read+trio.vcf.gz}
+    log=./results/${out/.vcf.gz/.log}
+    echo "Running WhatsHap on chr$chrNum for $sample trio in read+trio mode..."
+    whatshap phase --mapq 60 --indels --ped ./ped/${sample}.ped -o results/$out $uv $bam > $log 2>&1
+    perl ./extract_WhatsHap_results.pl results/$out $eval_pairs
+    vartsv=./results/${out/.vcf.gz/_phased.tsv}
+    wherr=./results/${out/.vcf.gz/_errCalls.txt}
+    python ./get_phasing_errors.py $vcf results/${out/.vcf.gz/_phased.tsv} $child > $wherr
+
+    mode="yes"
+    cis_wh=$( grep -cP "\t1$" $vartsv )
+    trans_wh=$( grep -cP "\t2$" $vartsv )
+    phased_wh=$(( cis_wh + trans_wh ))
+    not_phased_wh=$( grep -cP "\t4$" $vartsv )
+    errors_wh=$( tail -n +2 $wherr | wc -l  | cut -d " " -f1 )
+    runtime_wh=$( tail -n1 $log | rev | cut -d " " -f2 | rev )
+    echo -e "${sample}\t$mode\t$chrNum\t$runtime_wh\t$cis_wh\t$trans_wh\t$phased_wh\t$not_phased_wh\t$errors_wh" >> $wh_outtable
+  done
+
 done
