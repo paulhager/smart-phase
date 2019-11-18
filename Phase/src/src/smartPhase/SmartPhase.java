@@ -1355,7 +1355,7 @@ public class SmartPhase {
 			
 			//System.out.println(cisCounter+"|"+transCounter+"|"+observedCounter);
 
-			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+			confidence = Math.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 2));
 
 			// Check if trio info contradicts how cis/trans counters would add
 			// var to curBlock
@@ -1502,7 +1502,7 @@ public class SmartPhase {
 						new PhaseCountTriple<Set<VariantContext>, Phase>(key, Phase.TOTAL_OBSERVED), Double.MAX_VALUE);
 
 				confidence = Math
-						.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+						.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 2));
 
 				if (cisCounter != transCounter) {
 					for (HaplotypeBlock hb : intervalBlocks) {
@@ -1560,9 +1560,7 @@ public class SmartPhase {
 	private static double calcTransScore(VariantContext firstVar, VariantContext secondVar) {
 		ArrayList<Double> firstScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(firstVar, secondVar), new ArrayList<Double>());
 		ArrayList<Double> secondScores = transCombiCounter.getOrDefault(new VariantTuple<VariantContext, VariantContext>(secondVar, firstVar), new ArrayList<Double>());
-		
-		boolean noDouble = false;
-		
+				
 		int sizeFirst = firstScores.size(); 
 		int sizeSecond = secondScores.size(); 
 		int dif = Math.abs(sizeFirst - sizeSecond);
@@ -1571,26 +1569,18 @@ public class SmartPhase {
 			return firstScores.stream().mapToDouble(Double::doubleValue).sum() + secondScores.stream().mapToDouble(Double::doubleValue).sum();
 		}
 		
-		if(dif == Math.max(sizeFirst, sizeSecond)) {
-			dif--;
-			noDouble = true;
-		}
 		
-		List<Double> cutList = new ArrayList<Double>();
-		
+		dif--;
+				
 		if(sizeFirst > sizeSecond) {
 			Collections.sort(firstScores);
-			cutList = firstScores.subList(dif, sizeFirst);
+			firstScores.subList(0, dif).clear();
 		} else {
 			Collections.sort(secondScores);
-			cutList = secondScores.subList(dif, sizeSecond);
+			secondScores.subList(0, dif).clear();
 		}
 		
-		if(noDouble) {
-			return cutList.stream().mapToDouble(Double::doubleValue).sum();			
-		} else {
-			return 2*cutList.stream().mapToDouble(Double::doubleValue).sum();
-		}
+		return firstScores.stream().mapToDouble(Double::doubleValue).sum() + secondScores.stream().mapToDouble(Double::doubleValue).sum();
 		
 	}
 
@@ -1623,7 +1613,7 @@ public class SmartPhase {
 				
 					
 					double confidence = Math
-							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 1));
+							.abs((transCounter - Math.min(2 * cisCounter, observedCounter)) / (observedCounter + 2));
 
 					// Replace variant with one with a reference to link for
 					// confidence calculations later
