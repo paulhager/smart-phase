@@ -5,7 +5,7 @@ It accurately and efficiently reduces the number of possible compound heterozygo
 To achieve this, SmartPhase is able to incorporate parental genotype information as well as reads generated from DNA- or RNA-sequencing.
 Furthermore, it incorporates existing haplotype information and applies logical rules to exclude variant constellations that cannot be disease causing.
 
-Have a look at our publication [SmartPhase: Accurate and fast phasing of heterozygous variant pairs for genetic diagnosis of rare diseases](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007613) in *PLOS Computational Biology* to learn more about SmartPhase and its validation.
+Have a look at our publication [SmartPhase: Accurate and fast phasing of heterozygous variant pairs for genetic diagnosis of rare diseases](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007613) in *PLOS Computational Biology* to learn more about SmartPhase and its validation. If you use our tool, please cite the aformentioned paper.
 
 SmartPhase is offered as an executable JAR, but can also be compiled from its source code.
 The following documentation serves as a general overview and explanation of all its arguments and recommended values.
