@@ -529,16 +529,17 @@ public class SmartPhase {
 
 		String prevContig = "";
 		Interval curInterval;
-		String intervalContig;
+		String intervalContig = null;
 		String intervalBamContig;
-		String intervalVarContig;
+		String intervalVarContig = null;
 		String intervalName;
-		int intervalStart;
-		int intervalEnd;
+		int intervalStart = 0;
+		int intervalEnd = 0;
 		String intervalIdentifier;
 		boolean contigSwitch;
 		boolean stale = false;
 		boolean found = false;
+		ArrayList<HaplotypeBlock> phasedVars = null;
 		
 		while (intervalListIterator.hasNext()) {
 			curInterval = intervalListIterator.next();
@@ -653,7 +654,7 @@ public class SmartPhase {
 				variantsToPhase.iterator().forEachRemaining(v -> fillPhysicalPhasingMap(v));
 			}
 
-			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
+			phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
 			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
 			for (VariantContext v : neverSeenVariants) {
@@ -985,8 +986,24 @@ public class SmartPhase {
 				vcfWriter.add(curVarAllVars);
 				curVarAllVars = writeVCFReadIterator.next();
 			}
+			found = false;
+			for (HaplotypeBlock hb : phasedVars) {
+				VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
+				if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
+					if(hb.getMinConf() > vcfCutoff) {
+						found = true;
+						String phase = "";
+						phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
+						GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
+						toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
+						toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
+						vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+					}
+					break;
+				}	
+			}	
 			if(!found) {
-				vcfWriter.add(curVarAllVars);				
+				vcfWriter.add(curVarAllVars);
 			}
 			vcfWriter.close();
 		}
