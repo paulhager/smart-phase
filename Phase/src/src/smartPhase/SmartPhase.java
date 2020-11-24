@@ -43,10 +43,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
-//import org.apache.commons.lang.*;
-//import org.broadinstitute.gatk.utils.GenomeLocSortedSet.MergeStrategy;
-//import org.broadinstitute.gatk.utils.codecs.samread.SAMReadCodec;
-//import org.broadinstitute.gatk.utils.genotyper.AlleleList;
 import org.apache.commons.cli.*;
 
 import htsjdk.samtools.Cigar;
@@ -533,14 +529,17 @@ public class SmartPhase {
 
 		String prevContig = "";
 		Interval curInterval;
-		String intervalContig;
+		String intervalContig = null;
 		String intervalBamContig;
-		String intervalVarContig;
+		String intervalVarContig = null;
 		String intervalName;
-		int intervalStart;
-		int intervalEnd;
+		int intervalStart = 0;
+		int intervalEnd = 0;
 		String intervalIdentifier;
 		boolean contigSwitch;
+		boolean stale = false;
+		boolean found = false;
+		ArrayList<HaplotypeBlock> phasedVars = null;
 		
 		while (intervalListIterator.hasNext()) {
 			curInterval = intervalListIterator.next();
@@ -649,13 +648,13 @@ public class SmartPhase {
 
 			if (TRIO) {
 				trioPhasedVariants = trioPhase(variantsToPhase.iterator(), familyPed);
-				System.out.println("Trio size: " + trioPhasedVariants.size());
+				System.out.println("Number of variants phased through trio information: " + trioPhasedVariants.size());
 			} else if (PHYSICAL_PHASING) {
 				physicalPhasingPIDMap.clear();
 				variantsToPhase.iterator().forEachRemaining(v -> fillPhysicalPhasingMap(v));
 			}
 
-			ArrayList<HaplotypeBlock> phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
+			phasedVars = readPhase(variantsToPhase, curInterval, trioPhasedVariants, readsStartWithChr);
 			LinkedHashSet<HaplotypeBlock> deletingDups = new LinkedHashSet<HaplotypeBlock>(phasedVars);
 			phasedVars = new ArrayList<HaplotypeBlock>(deletingDups);
 			for (VariantContext v : neverSeenVariants) {
@@ -903,48 +902,67 @@ public class SmartPhase {
 				
 				// Write vcf file with phase
 				if(WRITE_VCF) {
-					while(writeVCFReadIterator.hasNext() && curVarAllVars.getStart() <= intervalEnd) {
-						boolean found = false;
-						for (HaplotypeBlock hb : phasedVars) {
-							VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
-							if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
-								if(hb.getMinConf() > vcfCutoff) {
-									found = true;
-									String phase = "";
-									phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
-									GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
-									toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
-									toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
-									vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+					do {
+						found = false;
+						if(curVarAllVars.getStart() <= intervalEnd && curVarAllVars.getContig().equals(intervalVarContig)) {
+							stale = false;
+							if(curVarAllVars.getStart() >= intervalStart) {
+								for (HaplotypeBlock hb : phasedVars) {
+									VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
+									if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
+										if(hb.getMinConf() > vcfCutoff) {
+											found = true;
+											String phase = "";
+											phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
+											GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
+											toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
+											toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
+											vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+										}
+										break;
+									}	
+								}								
+							}
+						} else {
+							if (stale) { // looking at last variants in old contig but interval is already on different contig. Need to write all to file until new contig reacher
+								vcfWriter.add(curVarAllVars);
+								while(writeVCFReadIterator.hasNext()) {
+									curVarAllVars = writeVCFReadIterator.next();
+									if(curVarAllVars.getStart() <= intervalEnd && curVarAllVars.getContig().equals(intervalVarContig)) {
+										if(curVarAllVars.getStart() >= intervalStart) {
+											for (HaplotypeBlock hb : phasedVars) {
+												VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
+												if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
+													if(hb.getMinConf() > vcfCutoff) {
+														found = true;
+														String phase = "";
+														phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
+														GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
+														toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
+														toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
+														vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+													}
+													break;
+												}	
+											}	
+											break;
+										} else {
+											break;
+										}
+									} else {
+										vcfWriter.add(curVarAllVars);
+									}
 								}
-								break;
-							}	
+							} else {
+								stale = true;
+								break;								
+							}
 						}
 						if(!found) {
 							vcfWriter.add(curVarAllVars);
 						}
 						curVarAllVars = writeVCFReadIterator.next();
-						if(!writeVCFReadIterator.hasNext()) {
-							found = false;
-							for (HaplotypeBlock hb : phasedVars) {
-								VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
-								if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
-									found = true;
-									if(hb.getMinConf() > vcfCutoff) {
-										String phase = "";
-										phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
-										GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
-										toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
-										toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
-										vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
-									}
-								}	
-							}
-							if(!found) {
-								vcfWriter.add(curVarAllVars);
-							}
-						}
-					}
+					} while(writeVCFReadIterator.hasNext());
 				}
 				variantsToPhase = null;
 
@@ -963,7 +981,30 @@ public class SmartPhase {
 
 		filteredVCFReader.close();
 		allVCFReader.close();
-		if(WRITE_VCF) {			
+		if(WRITE_VCF) {
+			while(writeVCFReadIterator.hasNext()) {
+				vcfWriter.add(curVarAllVars);
+				curVarAllVars = writeVCFReadIterator.next();
+			}
+			found = false;
+			for (HaplotypeBlock hb : phasedVars) {
+				VariantContext phasedAllVar = hb.getSimVC(curVarAllVars);
+				if(phasedAllVar != null && hb.getAllVariants().size() > 1) {
+					if(hb.getMinConf() > vcfCutoff) {
+						found = true;
+						String phase = "";
+						phase = hb.getStrand(phasedAllVar) == Strand.STRAND1 ? "0|1" : "1|0"; 
+						GenotypesContext toWriteGTs = GenotypesContext.copy(curVarAllVars.getGenotypes());
+						toWriteGTs.remove(toWriteGTs.get(PATIENT_ID));
+						toWriteGTs.add(new GenotypeBuilder(curVarAllVars.getGenotype(PATIENT_ID)).attribute("SPGT", phase).attribute("SPID", intervalContig + "_" + hb.getBlockStart()).make());
+						vcfWriter.add(new VariantContextBuilder(phasedAllVar).rmAttributes(noPrintAttributes).genotypes(toWriteGTs).make());
+					}
+					break;
+				}	
+			}	
+			if(!found) {
+				vcfWriter.add(curVarAllVars);
+			}
 			vcfWriter.close();
 		}
 
