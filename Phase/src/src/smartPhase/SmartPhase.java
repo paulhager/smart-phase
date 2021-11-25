@@ -448,14 +448,14 @@ public class SmartPhase {
 								"Invalid .bed file. At least three tab or white-space seperated collumns must be present.");
 					}
 					String name = null;
-					if (columns.length > 3) {
+					if (columns.length > 3 && !columns[nameCol].isEmpty()) { //May have a score (column[4]) or further information but no 'name'
 						name = columns[nameCol];
 					}
 					String intervalChromosome = columns[0];
 					if (intervalChromosome.startsWith("chr")) {
 						intervalChromosome = intervalChromosome.substring(3, intervalChromosome.length());
 					}
-					iList.add(new Interval(intervalChromosome, Integer.parseInt(columns[1]),
+					iList.add(new Interval(intervalChromosome, Integer.parseInt(columns[1])+1, // Add 1 as bed format start is zero-based
 							Integer.parseInt(columns[2]), true, name));
 				}
 			} catch (Exception e) {
